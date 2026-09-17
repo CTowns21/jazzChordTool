@@ -55,24 +55,26 @@ Then: Display the optimal inversions of those triads
 ```
 * Notes as steps/half-steps relative to each other, do math each time. Would also have to store formulas for scale types
 ```json
+notes.json
 {
-	"Note": [
-		"A": 1, # Other way around? "1": "C"
-		"Bb": 1.5,
-		"B": 2,
-		"...": "..."
-	],
-	"Scale": [
-		"Major": [0,1,1,0.5,1,1,0.5],
-		"Minor": [0,0.5,1,1,0,5,1,1],
-		"...": "..."
-	],
-	"Chord": [
-		"Major Triad": Major[1,3,5],
-		"Minor 7": Minor[1,3,5,7],
-		"...": "..."
-	],
+	"A": 1, # Other way around? "1": "C"
+	"Bb": 1.5,
+	"B": 2,
+	"...": "..."
 }
+scales.json
+{
+	"Major": [0,1,1,0.5,1,1,0.5],
+	"Minor": [0,0.5,1,1,0,5,1,1],
+	"...": "..."
+}
+chords.json
+{
+	"Triad": [1,3,5],
+	"7": [1,3,5,7],
+	"...": "..."
+}
+Use combination of all of these to assemble chords: "Given note A of Major scale-type produce the Triad" = A, C#, E
 ```
 
 ## Flow of Logic
