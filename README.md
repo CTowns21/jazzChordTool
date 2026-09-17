@@ -57,7 +57,7 @@ Then: Display the optimal inversions of those triads
 ```json
 {
 	"Note": [
-		"A": 1,
+		"A": 1, # Other way around? "1": "C"
 		"Bb": 1.5,
 		"B": 2,
 		"...": "..."
