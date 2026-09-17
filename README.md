@@ -60,7 +60,7 @@ Then: Display the optimal inversions of those triads
 		"A": 0,
 		"Bb": 0.5,
 		"B": 1
-		"...": "...
+		"...": "..."
 	],
 	"Scale Type": [
 		"Major": [0,1,1,0.5,1,1,0.5],
