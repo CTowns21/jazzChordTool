@@ -62,11 +62,16 @@ Then: Display the optimal inversions of those triads
 		"B": 2,
 		"...": "..."
 	],
-	"Scale Type": [
+	"Scale": [
 		"Major": [0,1,1,0.5,1,1,0.5],
 		"Minor": [0,0.5,1,1,0,5,1,1],
 		"...": "..."
-	]
+	],
+	"Chord": [
+		"Major Triad": Major[1,3,5],
+		"Minor 7": Minor[1,3,5,7],
+		"...": "..."
+	],
 }
 ```
 
