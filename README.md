@@ -64,7 +64,7 @@ notes.json
 }
 scales.json
 {
-	"Major": [0,1,1,0.5,1,1,0.5],
+	"Major": [0,1,1,0.5,1,1,0.5], # Maybe relative to start, so [0,1,2,2.5,3.5,4.5,5]
 	"Minor": [0,0.5,1,1,0,5,1,1],
 	"...": "..."
 }
