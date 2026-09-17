@@ -16,13 +16,13 @@ A([CbM7]) --> B([Ab-6]) --> C([Bb-7]) --> D([Eb-7]) --> E([Ab-7]) --> F([Db7]) -
 | Chord | Note 1 | Note 2 | Note 3 | Note 4 | Inversion |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **CbM7** | Eb | Gb | A | Cb | 1st |
-| **Ab-6** | Eb | **F** | **Ab** | B | 2nd |
-| **Bb-7** | **Db** | F | Ab | **Bb** | 1st |
-| **Eb-7** | Db | **Eb** | **Gb** | Bb | 3rd |
-| **Ab-7** | **Eb** | **Gb** | **Ab** | **B** | 2nd |
-| **Db7** | **Db** | **F** | Ab | B | Root |
-| **GbM7** | **E** | **Gb** | **Bb** | **Db** | 3rd |
-* Bolded notes are those whose finger position changed from previous chord/inversion
+| **Ab-6** | Eb | ***F*** | ***Ab*** | B | 2nd |
+| **Bb-7** | ***Db*** | F | Ab | ***Bb*** | 1st |
+| **Eb-7** | Db | ***Eb*** | ***Gb*** | Bb | 3rd |
+| **Ab-7** | ***Eb*** | ***Gb*** | ***Ab*** | ***B*** | 2nd |
+| **Db7** | ***Db*** | ***F*** | Ab | B | Root |
+| **GbM7** | ***E*** | ***Gb*** | ***Bb*** | ***Db*** | 3rd |
+* Italicized notes are those whose finger position changed from previous chord/inversion
 
 ## Proof of Concept Definition
 
