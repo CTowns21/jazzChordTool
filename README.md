@@ -35,7 +35,7 @@ Then: Display the optimal inversions of those triads
 {
 	"AM7": ["A", "C#", "E", "G#"],
 	"BM7": ["B", "D#", "F#", "A#"],
-	"...", "..."
+	"...": "..."
 }
 ```
 * Scales as objects, then do math depending on type
