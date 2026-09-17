@@ -57,9 +57,9 @@ Then: Display the optimal inversions of those triads
 ```json
 {
 	"Note": [
-		"A": 0,
-		"Bb": 0.5,
-		"B": 1
+		"A": 1,
+		"Bb": 1.5,
+		"B": 2,
 		"...": "..."
 	],
 	"Scale Type": [
