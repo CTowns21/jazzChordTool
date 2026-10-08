@@ -26,7 +26,7 @@ A([CbM7]) --> B([Ab-6]) --> C([Bb-7]) --> D([Eb-7]) --> E([Ab-7]) --> F([Db7]) -
 
 ## Proof of Concept Definition
 
-Given: 4 Major Triads provided by user input
+Given: 4 Major Triads provided by user input\
 Then: Display the optimal inversions of those triads
 
 ## Possible Data Structure
