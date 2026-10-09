@@ -5,22 +5,33 @@ Description: A proof of concept to show that I can output the notes of a triad f
 Author: Carson Towns
 """
 
-import os, sys
+import os
+import sys
+import json
 
-chordChoices = {
-    "1": "Major",
-    "2": "Minor"
-}
+with open('musicalBuildingBlocks/notes.json', 'r') as file:
+    notes = json.load(file)
+with open('musicalBuildingBlocks/scales.json', 'r') as file:
+    scales = json.load(file)
+with open('musicalBuildingBlocks/chords.json', 'r') as file:
+    chords = json.load(file)
 
-noteChoices = {
-        "1": "A",
-        "2": "B",
-        "3": "C",
-        "4": "D",
-        "5": "E",
-        "6": "F",
-        "7": "G"
-}
+print(notes)
+
+# chordChoices = {
+#     "1": "Major",
+#     "2": "Minor"
+# }
+
+# noteChoices = {
+#         "1": "A",
+#         "2": "B",
+#         "3": "C",
+#         "4": "D",
+#         "5": "E",
+#         "6": "F",
+#         "7": "G"
+# }
 
 def getRootNote():
 
