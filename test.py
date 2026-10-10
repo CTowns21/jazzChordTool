@@ -16,18 +16,16 @@ with open('musicalBuildingBlocks/scales.json', 'r') as file:
 with open('musicalBuildingBlocks/chords.json', 'r') as file:
     chords = json.load(file)
 
-print(notes["1"])
-
 def getRootNote():
 
     # Print choices
-    for number, note in notes.items():
-        print(f"{note}")
+    for note, number in notes.items():
+        print(f"{note}", end=" ")
 
     # Get input
     while True:
-        userInput = input("Choose a root note: ")
-        if userInput in notes.values():
+        userInput = input("\n\nChoose a root note: ")
+        if userInput in notes.keys():
             result = userInput
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -35,21 +33,21 @@ def getRootNote():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid root note:")
-            for number, note in notes.items():
-                    print(f"{note}")
+            print("Please enter a valid root note!\n")
+            for note, number in notes.items():
+                    print(f"{note}", end=" ")
 
     return result
 
 def getScaleType():
 
     # Print choices
-    for number, type in scales.items():
-        print(f"{number} - {type}")
+    for scale, recipe in scales.items():
+        print(f"{scale}")
 
     # Get input
     while True:
-        userInput = input("Choose a scale type by number: ")
+        userInput = input("\n\nChoose a scale type: ")
         if userInput in scales.keys():
             result = userInput
             # Clear the terminal screen
@@ -58,9 +56,9 @@ def getScaleType():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid scale type:")
-            for number, type in scales.items():
-                    print(f"{number} - {type}")
+            print("Please enter a valid scale type:\n")
+            for scale, recipe in scales.items():
+                    print(f"{scale}")
 
     return result
 
@@ -68,11 +66,11 @@ def getChordType():
 
     # Print choices
     for type, recipe in chords.items():
-        print(f"{type} - {recipe}")
+        print(f"{type}")
 
     # Get input
     while True:
-        userInput = input("Choose a chord type: ")
+        userInput = input("\n\nChoose a chord type: ")
         if userInput in chords.keys():
             result = userInput
             # Clear the terminal screen
@@ -81,11 +79,26 @@ def getChordType():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid chord type:")
+            print("Please enter a valid chord type:\n")
             for type, recipe in chords.items():
-                    print(f"{type} - {recipe}")
+                    print(f"{type}")
 
     return result
+
+def calculateChord(rootNote, scaleType, chordType):
+
+    baseRecipe = scales[f"{scaleType}"]
+    adjustmentValue = float(notes[f"{rootNote}"])
+    adjustedRecipe = [ x + adjustmentValue for x in baseRecipe ]
+    
+    finalRecipe = []
+    for value in adjustedRecipe:
+        if value >= 7:
+            finalRecipe.append(value - 7)
+        else:
+            finalRecipe.append(value)
+
+    return finalRecipe
 
 def main():
 
@@ -93,13 +106,13 @@ def main():
     rootNote  = getRootNote()
     scaleType = getScaleType()
     chordType = getChordType()
+    finalChord = calculateChord(rootNote, scaleType, chordType)
 
     if rootNote in ['A', 'E']:
          article = "an"
     else:
          article = "a"
-    print(f"The following is {article} {rootNote} {scales[scaleType]} {chordType}:")
-    
+    print(f"The following is {article} {rootNote} {scaleType} {chordType}:\n{finalChord}")
 
 if __name__ == "__main__":
     # Clear the terminal screen
