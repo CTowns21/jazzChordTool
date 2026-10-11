@@ -29,7 +29,7 @@ def getNumberOfChords():
         except ValueError:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid number!\n")
+            print("Please enter a valid number you stupid idiot chop hoe!\n")
 
     return result
 
@@ -50,7 +50,7 @@ def getRootNote():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid root note!\n")
+            print("Please enter a valid root note you stupid idiot chop hoe!\n")
             for note, number in notes.items():
                     print(f"{note}", end=" ")
 
@@ -73,7 +73,7 @@ def getScaleType():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid scale type:\n")
+            print("Please enter a valid scale type you stupid idiot chop hoe!:\n")
             for scale, recipe in scales.items():
                     print(f"{scale}")
 
@@ -96,7 +96,7 @@ def getChordType():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid chord type:\n")
+            print("Please enter a valid chord type you stupid idiot chop hoe!\n")
             for type, recipe in chords.items():
                     print(f"{type}")
 
