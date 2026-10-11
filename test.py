@@ -16,6 +16,23 @@ with open('musicalBuildingBlocks/scales.json', 'r') as file:
 with open('musicalBuildingBlocks/chords.json', 'r') as file:
     chords = json.load(file)
 
+def getNumberOfChords():
+
+    # Get input
+    while True:
+        userInput = input("\n\nHow many chords will you need: ")
+        try:
+            result = int(userInput)
+            # Clear the terminal screen
+            os.system('cls' if os.name == 'nt' else 'clear')
+            break
+        except ValueError:
+            # Clear the terminal screen
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print("Please enter a valid number!\n")
+
+    return result
+
 def getRootNote():
 
     # Print choices
@@ -104,16 +121,15 @@ def calculateChord(rootNote, scaleType, chordType):
 def main():
 
     # Collecting input
-    rootNote  = getRootNote()
-    scaleType = getScaleType()
-    chordType = getChordType()
-    finalChord = calculateChord(rootNote, scaleType, chordType)
+    numberOfChords = getNumberOfChords()
+    finalChords = []
+    for x in range(numberOfChords):
+        rootNote  = getRootNote()
+        scaleType = getScaleType()
+        chordType = getChordType()
+        finalChords.append(calculateChord(rootNote, scaleType, chordType))
 
-    if rootNote in ['A', 'E']:
-         article = "an"
-    else:
-         article = "a"
-    print(f"The following is {article} {rootNote} {scaleType} {chordType}:\n{finalChord}")
+    print(f"The following is your requested chords:\n{finalChords}")
 
 if __name__ == "__main__":
     # Clear the terminal screen
