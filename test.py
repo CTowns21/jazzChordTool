@@ -89,27 +89,17 @@ def calculateChord(rootNote, scaleType, chordType):
 
     # Create initial mapping
     baseRecipe = scales[f"{scaleType}"]
-    adjustmentValue = float(notes[f"{rootNote}"])
-    adjustedRecipe = [ x + adjustmentValue for x in baseRecipe ]
+    adjustmentValue = notes[rootNote]
     
     # Adjust based off values greater than 7 and loop around
-    realRecipe = []
-    for value in adjustedRecipe:
-        if value >= 7:
-            realRecipe.append(value - 7)
-        else:
-            realRecipe.append(value)
+    realRecipe = [(x + adjustmentValue) % 12 for x in baseRecipe]
 
     # Swap values with keys for readability
     val_to_key = {v: k for k, v in notes.items()}
-    swappedScale = [val_to_key.get(item, item) for item in notes.values()]
+    swappedScale = [val_to_key[val] for val in realRecipe]
 
     # Take just desired chord notes
-    finalChord = []
-    for x in chords[f"{chordType}"]:
-        finalChord.append(swappedScale[int(x)])
-
-    return finalChord
+    return [swappedScale[int(x-1)] for x in chords[f"{chordType}"]]
 
 def main():
 
