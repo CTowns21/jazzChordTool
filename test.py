@@ -87,14 +87,14 @@ def getChordType():
 
 def calculateChord(rootNote, scaleType, chordType):
 
-    # Create initial mapping
+    # Create initial mapping and get needed adjustment
     baseRecipe = scales[f"{scaleType}"]
     adjustmentValue = notes[rootNote]
     
     # Adjust based off values greater than 7 and loop around
     realRecipe = [(x + adjustmentValue) % 12 for x in baseRecipe]
 
-    # Swap values with keys for readability
+    # Swap note values with keys to retrieve easier
     val_to_key = {v: k for k, v in notes.items()}
     swappedScale = [val_to_key[val] for val in realRecipe]
 
