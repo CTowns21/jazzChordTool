@@ -29,19 +29,15 @@ def getNumberOfChords():
         except ValueError:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid number you stupid idiot chop hoe!\n")
+            print("Please enter a valid number you stupid idiot chop hoe!")
 
     return result
 
-def getRootNote():
-
-    # Print choices
-    for note, number in notes.items():
-        print(f"{note}", end=" ")
+def getRootNote(chordType):
 
     # Get input
     while True:
-        userInput = input("\n\nChoose a root note: ")
+        userInput = input(f"\nChord Type: {chordType}\nChoose a root note: ")
         if userInput in notes.keys():
             result = userInput
             # Clear the terminal screen
@@ -50,21 +46,15 @@ def getRootNote():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid root note you stupid idiot chop hoe!\n")
-            for note, number in notes.items():
-                    print(f"{note}", end=" ")
+            print("Please enter a valid root note you stupid idiot chop hoe!")
 
     return result
 
-def getScaleType():
-
-    # Print choices
-    for scale, recipe in scales.items():
-        print(f"{scale}")
+def getScaleType(chordType, rootNote):
 
     # Get input
     while True:
-        userInput = input("\n\nChoose a scale type: ")
+        userInput = input(f"\nChord Type: {chordType}\nRoot Note: {rootNote}\nChoose a scale type: ")
         if userInput in scales.keys():
             result = userInput
             # Clear the terminal screen
@@ -73,9 +63,7 @@ def getScaleType():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid scale type you stupid idiot chop hoe!:\n")
-            for scale, recipe in scales.items():
-                    print(f"{scale}")
+            print("Please enter a valid scale type you stupid idiot chop hoe!")
 
     return result
 
@@ -96,9 +84,7 @@ def getChordType():
         else:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid chord type you stupid idiot chop hoe!\n")
-            for type, recipe in chords.items():
-                    print(f"{type}")
+            print("Please enter a valid chord type you stupid idiot chop hoe!")
 
     return result
 
@@ -125,8 +111,8 @@ def main():
     numberOfChords = getNumberOfChords()
     finalChords = {}
     for x in range(numberOfChords):
-        rootNote  = getRootNote()
-        scaleType = getScaleType()
+        rootNote  = getRootNote(chordType)
+        scaleType = getScaleType(chordType, rootNote)
         chordName = f"{rootNote} {scaleType} {chordType}"
         finalChords[chordName] = calculateChord(rootNote, scaleType, chordType)
 
