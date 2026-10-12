@@ -122,14 +122,16 @@ def main():
 
     # Collecting input
     numberOfChords = getNumberOfChords()
-    finalChords = []
+    finalChords = {}
     for x in range(numberOfChords):
         rootNote  = getRootNote()
         scaleType = getScaleType()
         chordType = getChordType()
-        finalChords.append(calculateChord(rootNote, scaleType, chordType))
+        chordName = f"{rootNote} {scaleType} {chordType}"
+        finalChords[chordName] = calculateChord(rootNote, scaleType, chordType)
 
-    print(f"The following is your requested chords:\n{finalChords}")
+    print(*finalChords.keys(), sep="\n")
+    print(*finalChords.values(), sep="\n")
 
 if __name__ == "__main__":
     # Clear the terminal screen
