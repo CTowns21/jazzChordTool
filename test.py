@@ -121,12 +121,12 @@ def calculateChord(rootNote, scaleType, chordType):
 def main():
 
     # Collecting input
+    chordType = getChordType() # Gathering only once so we don't have mismatching amounts of notes; TODO: solve later
     numberOfChords = getNumberOfChords()
     finalChords = {}
     for x in range(numberOfChords):
         rootNote  = getRootNote()
         scaleType = getScaleType()
-        chordType = getChordType()
         chordName = f"{rootNote} {scaleType} {chordType}"
         finalChords[chordName] = calculateChord(rootNote, scaleType, chordType)
 
