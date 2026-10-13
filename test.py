@@ -23,15 +23,17 @@ def getNumberOfChords():
         userInput = input("How many chords will you need: ")
         try:
             result = int(userInput)
-            # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
-            break
+            
+            if result > 1:
+                return result
+            else:
+                print("Please enter a valid number you stupid idiot chop hoe!")
+
         except ValueError:
             # Clear the terminal screen
             os.system('cls' if os.name == 'nt' else 'clear')
             print("Please enter a valid number you stupid idiot chop hoe!")
-
-    return result
 
 def getRootNote(chordType, num):
 
