@@ -104,6 +104,14 @@ def calculateChord(rootNote, scaleType, chordType):
     # Take just desired chord notes
     return [swappedScale[int(x-1)] for x in chords[f"{chordType}"]]
 
+def getChordInversions(chordNotes):
+    inversions = []
+    n = len(chordNotes)
+
+    for i in range(n):
+        inversions.append(chordNotes[i:] + chordNotes[:i])
+    return inversions
+
 def main():
 
     # Collecting input
@@ -116,8 +124,16 @@ def main():
         chordName = f"{rootNote} {scaleType} {chordType}"
         finalChords[chordName] = calculateChord(rootNote, scaleType, chordType)
 
-    print(*finalChords.keys(), sep="\n")
-    print(*finalChords.values(), sep="\n")
+    # Now need to start doing calculation stuff
+    # First will be unchanged TODO: solve this; precompare and then we choose optimal first chord?
+    chosenInversions = list(finalChords.values())[0]
+    # Example: {'G Minor Triad': ['G', 'Bb', 'D'], 'B Major Triad': ['B', 'Eb', 'Gb']}
+    for chord in finalChords.values():
+        inversions = getChordInversions(chord)
+        print("debug")
+
+    # print(*finalChords.keys(), sep="\n")
+    # print(*finalChords.values(), sep="\n")
 
 if __name__ == "__main__":
     # Clear the terminal screen
