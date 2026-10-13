@@ -20,7 +20,7 @@ def getNumberOfChords():
 
     # Get input
     while True:
-        userInput = input("\n\nHow many chords will you need: ")
+        userInput = input("How many chords will you need: ")
         try:
             result = int(userInput)
             # Clear the terminal screen
@@ -33,11 +33,11 @@ def getNumberOfChords():
 
     return result
 
-def getRootNote(chordType):
+def getRootNote(chordType, num):
 
     # Get input
     while True:
-        userInput = input(f"\nChord Type: {chordType}\nChoose a root note: ")
+        userInput = input(f"Chord #{num+1}\nChord Type: {chordType}\nChoose a root note: ")
         if userInput in notes.keys():
             result = userInput
             # Clear the terminal screen
@@ -50,11 +50,11 @@ def getRootNote(chordType):
 
     return result
 
-def getScaleType(chordType, rootNote):
+def getScaleType(chordType, rootNote, num):
 
     # Get input
     while True:
-        userInput = input(f"\nChord Type: {chordType}\nRoot Note: {rootNote}\nChoose a scale type: ")
+        userInput = input(f"Chord #{num+1}\nChord Type: {chordType}\nRoot Note: {rootNote}\nChoose a scale type: ")
         if userInput in scales.keys():
             result = userInput
             # Clear the terminal screen
@@ -110,9 +110,9 @@ def main():
     chordType = getChordType() # Gathering only once so we don't have mismatching amounts of notes; TODO: solve later
     numberOfChords = getNumberOfChords()
     finalChords = {}
-    for x in range(numberOfChords):
-        rootNote  = getRootNote(chordType)
-        scaleType = getScaleType(chordType, rootNote)
+    for num in range(numberOfChords):
+        rootNote  = getRootNote(chordType, num)
+        scaleType = getScaleType(chordType, rootNote, num)
         chordName = f"{rootNote} {scaleType} {chordType}"
         finalChords[chordName] = calculateChord(rootNote, scaleType, chordType)
 
