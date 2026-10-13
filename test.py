@@ -24,7 +24,7 @@ def displayState(chordNames, chosenInversions, chordType=None):
 def shouldContinue():
 
     while True:
-        userInput = input("Add another chord? Type [Enter] or no").strip().lower()
+        userInput = input("Add another chord? Type [Enter] or no: ").strip().lower()
 
         if userInput in ['y', 'yes', '']:
             return True
@@ -79,7 +79,7 @@ def getChordType():
 
     return result
 
-def calculateChord(rootNote, scaleType, chordType):
+def assembleChordFromInputs(rootNote, scaleType, chordType):
 
     # Create initial mapping and get needed adjustment
     baseRecipe = scales[f"{scaleType}"]
@@ -95,7 +95,7 @@ def calculateChord(rootNote, scaleType, chordType):
     # Take just desired chord notes
     return [swappedScale[int(x-1)] for x in chords[f"{chordType}"]]
 
-def getChordInversions(chordNotes):
+def createChordInversions(chordNotes):
     inversions = []
     n = len(chordNotes)
 
@@ -103,7 +103,7 @@ def getChordInversions(chordNotes):
         inversions.append(chordNotes[i:] + chordNotes[:i])
     return inversions
 
-def getDistanceScore(chordA, chordB):
+def calculateDistanceScore(chordA, chordB):
 
     distanceScore = 0
 
@@ -118,39 +118,16 @@ def chooseBestInversion(previousChord, newChord):
     bestInversion = None
     bestDistanceScore = sys.maxsize
 
-    inversions = getChordInversions(newChord)
+    inversions = createChordInversions(newChord)
 
     for inversion in inversions:
-        distanceScore = getDistanceScore(previousChord, inversion)
+        distanceScore = calculateDistanceScore(previousChord, inversion)
 
         if distanceScore < bestDistanceScore:
             bestDistanceScore = distanceScore
             bestInversion = inversion
     
     return bestInversion
-
-def runCalculations(inputChords):
-
-    chordList = list(inputChords.values())
-    chosenInversions = [chordList[0]]
-    previousChord = chordList[0]
-
-    for nextChord in chordList[1:]:
-        bestInversion = None
-        bestDistanceScore = sys.maxsize
-
-        inversions = getChordInversions(nextChord)
-        for currentChord in inversions:
-            distanceScore = getDistanceScore(previousChord, currentChord)
-
-            if distanceScore < bestDistanceScore:
-                bestDistanceScore = distanceScore
-                bestInversion = currentChord
-
-        chosenInversions.append(bestInversion)
-        previousChord = bestInversion
-
-    return chosenInversions
 
 def main():
 
@@ -173,7 +150,7 @@ def main():
         chordName = f"{rootNote} {scaleType} {chordType}"
         chordNames.append(chordName)
 
-        chordNotes = calculateChord(rootNote, scaleType, chordType)
+        chordNotes = assembleChordFromInputs(rootNote, scaleType, chordType)
 
         if not chosenInversions:
             # First chord stays as written
