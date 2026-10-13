@@ -9,6 +9,17 @@ import os
 import sys
 import json
 
+def loadMusicalData():
+
+    with open('musicalBuildingBlocks/notes.json', 'r') as file:
+        notes = json.load(file)
+    with open('musicalBuildingBlocks/scales.json', 'r') as file:
+        scales = json.load(file)
+    with open('musicalBuildingBlocks/chords.json', 'r') as file:
+        chords = json.load(file)
+
+    return notes, scales, chords
+
 def clearScreen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -167,13 +178,5 @@ def main():
 
 if __name__ == "__main__":
 
-    # File loading
-    with open('musicalBuildingBlocks/notes.json', 'r') as file:
-        notes = json.load(file)
-    with open('musicalBuildingBlocks/scales.json', 'r') as file:
-        scales = json.load(file)
-    with open('musicalBuildingBlocks/chords.json', 'r') as file:
-        chords = json.load(file)
-
-    clearScreen()
+    notes, scales, chords = loadMusicalData()
     main()
