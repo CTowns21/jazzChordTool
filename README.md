@@ -108,7 +108,3 @@ C ---> E([Once done, display report showing optimal inversion path])
   * Rootless option
   * Force chords to be certain inversions
 * Show near chords (those whose score is very close to the best and might be more optimal) and provide option to choose those, prompting re-calculating of the rest of the chords
-
-## Next Steps
-
-* Function/Process that can display the correct notes for a given Triad
