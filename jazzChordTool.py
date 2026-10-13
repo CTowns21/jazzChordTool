@@ -69,18 +69,6 @@ def displayState(chordNames, chosenInversions):
             print(f"{name}: {inversion}")
     print()
 
-def shouldContinue():
-
-    while True:
-        userInput = input("Add another chord? Type [Enter] or no: ").strip().lower()
-
-        if userInput in ['y', 'yes', '']:
-            return True
-        elif userInput in ['n', 'no']:
-            return False
-        else:
-            print("Please enter a valid answer stupid idiot chop hoe!")
-
 def getChordSymbol():
 
     while True:
@@ -184,6 +172,13 @@ def main():
             break
         
         chordNotes = buildChordFromInputs(chordSymbol)
+
+        # Validating that chords have same amount of notes for now
+        if chosenInversions and len(chordNotes) != len(chosenInversions[0]):
+            print("Please enter a chord with the same number of notes as the previous chords. Stupid idiot chop hoe!")
+            input("Press Enter to continue...")
+            continue
+
         chordNames.append(chordSymbol)
 
         if not chosenInversions:
@@ -193,11 +188,6 @@ def main():
             chosenInversions.append(
                 chooseBestInversion(chosenInversions[-1], chordNotes)
             )
-
-        displayState(chordNames, chosenInversions)
     
-        if not shouldContinue():
-            break
-
 if __name__ == "__main__":
     main()
