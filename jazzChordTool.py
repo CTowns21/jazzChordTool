@@ -60,7 +60,7 @@ pitchToName = {
 def clearScreen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def displayState(chordNames, chosenInversions, chordType=None):
+def displayState(chordNames, chosenInversions):
     clearScreen()
 
     if chordNames:
@@ -79,40 +79,26 @@ def shouldContinue():
         elif userInput in ['n', 'no']:
             return False
         else:
-            print("Please enter a valid answer you stupid idiot chop hoe! (y/n)")
+            print("Please enter a valid answer stupid idiot chop hoe!")
 
-def getRootNote(chordType, num):
+def getChordSymbol():
 
     while True:
         userInput = input(
-            f"Chord Type: {chordType}\nChoose a root note (or type 'done'): "
+            "Enter chord symbol (or type 'done'): "
         ).strip()
 
         if userInput.lower() == "done":
             return None
-
-        if userInput in notes.keys():
-            result = userInput
-            break
-        else:
-            print("Please enter a valid root note you stupid idiot chop hoe!")
-
-    return result
-
-def getChordType():
-
-    for chordType in chordFormulas.keys():
-        print(chordType)
-    
-    while True:
-        userInput = input("\n\nChoose a chord type: ").strip()
-        if userInput in chordFormulas.keys():
+        
+        try:
+            parseChordSymbol(userInput)
             return userInput
-        else:
-            print("Please enter a valid chord type you stupid idiot chop hoe!")
+        except ValueError as e:
+            print(e)
 
-def assembleChordFromInputs(rootNote, chordType):
-
+def buildChordFromInputs(symbol):
+    rootNote, chordType = parseChordSymbol(symbol)
     rootValue = notes[rootNote]
     intervals = chordFormulas[chordType]
 
@@ -137,6 +123,38 @@ def calculateDistanceScore(chordA, chordB):
 
     return distanceScore
 
+def parseChordSymbol(symbol):
+
+    symbol = symbol.strip()
+
+    if not symbol:
+        raise ValueError("Chord symbol cannot be empty, stupid idiot chop hoe!")
+
+    if len(symbol) >= 2 and symbol[1] in ['#', 'b']:
+        rootNote    = symbol[:2]
+        qualityText = symbol[2:]
+    else:
+        rootNote    = symbol[:1]
+        qualityText = symbol[1:]
+
+    if rootNote not in notes:
+        raise ValueError(f"Invalid root note: {rootNote}, stupid idiot chop hoe!")
+    
+    if qualityText in ["", "maj", "major"]:
+        chordType = "major"
+    elif qualityText in ["m", "min", "minor", "-"]:
+        chordType = "minor"
+    elif qualityText == "7":
+        chordType = "dominant7"
+    elif qualityText in ["M7", "maj7", "major7"]:
+        chordType = "major7"
+    elif qualityText in ["m7", "min7", "minor7", "-7"]:
+        chordType = "minor7"
+    else:
+        raise ValueError(f"Unsupported chord quality: {qualityText}, stupid idiot chop hoe!")
+    
+    return rootNote, chordType
+
 def chooseBestInversion(previousChord, newChord):
     bestInversion = None
     bestDistanceScore = sys.maxsize
@@ -154,22 +172,19 @@ def chooseBestInversion(previousChord, newChord):
 
 def main():
 
-    chordType = getChordType()
-
     chordNames = []
     chosenInversions = []
 
     while True:
 
-        displayState(chordNames, chosenInversions, chordType)
-        rootNote  = getRootNote(chordType, len(chordNames))
-        if rootNote is None:
+        displayState(chordNames, chosenInversions)
+
+        chordSymbol = getChordSymbol()
+        if chordSymbol is None:
             break
-
-        chordName = f"{rootNote} {chordType}"
-        chordNames.append(chordName)
-
-        chordNotes = assembleChordFromInputs(rootNote, chordType)
+        
+        chordNotes = buildChordFromInputs(chordSymbol)
+        chordNames.append(chordSymbol)
 
         if not chosenInversions:
             # First chord stays as written
@@ -179,7 +194,7 @@ def main():
                 chooseBestInversion(chosenInversions[-1], chordNotes)
             )
 
-        displayState(chordNames, chosenInversions, chordType)
+        displayState(chordNames, chosenInversions)
     
         if not shouldContinue():
             break
