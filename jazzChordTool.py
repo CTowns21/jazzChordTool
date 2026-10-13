@@ -9,6 +9,55 @@ import os
 import sys
 import json
 
+chordFormulas = {
+    "major":     [0, 4, 7],
+    "minor":     [0, 3, 7],
+    "dominant7": [0, 4, 7, 10],
+    "major7":    [0, 4, 7, 11],
+    "minor7":    [0, 3, 7, 10],
+}
+
+# Many-to-One input mapping
+notes = {
+    "C" : 0,
+    "B#": 0,
+    "C#": 1,
+    "Db": 1,
+    "D" : 2,
+    "Eb": 3,
+    "D#": 3,
+    "E" : 4,
+    "Fb": 4,
+    "F" : 5,
+    "E#": 5,
+    "F#": 6,
+    "Gb": 6,
+    "G" : 7,
+    "Ab": 8,
+    "G#": 8,
+    "A" : 9,
+    "Bb": 10,
+    "A#": 10,
+    "B" : 11,
+    "Cb": 11
+}
+
+# One-to-One output mapping
+pitchToName = {
+    0:  "C" ,
+    1:  "Db",
+    2:  "D" ,
+    3:  "Eb",
+    4:  "E" ,
+    5:  "F" ,
+    6:  "Gb",
+    7:  "G" ,
+    8:  "Ab",
+    9:  "A" ,
+    10: "Bb",
+    11: "B"
+}
+
 def loadMusicalData():
 
     with open('musicalBuildingBlocks/notes.json', 'r') as file:
@@ -148,15 +197,14 @@ def main():
     chosenInversions = []
 
     while True:
-        num = len(chordNames)
 
         displayState(chordNames, chosenInversions, chordType)
-        rootNote  = getRootNote(chordType, num)
-        if not rootNote:
+        rootNote  = getRootNote(chordType, len(chordNames))
+        if rootNote is None:
             break
 
         displayState(chordNames, chosenInversions, chordType)
-        scaleType = getScaleType(chordType, rootNote, num)
+        scaleType = getScaleType(chordType, rootNote, len(chordNames))
 
         chordName = f"{rootNote} {scaleType} {chordType}"
         chordNames.append(chordName)
@@ -167,9 +215,9 @@ def main():
             # First chord stays as written
             chosenInversions.append(chordNotes)
         else:
-            previousChord = chosenInversions[-1]
-            bestInversion = chooseBestInversion(previousChord, chordNotes)
-            chosenInversions.append(bestInversion)
+            chosenInversions.append(
+                chooseBestInversion(chosenInversions[-1], chordNotes)
+            )
 
         displayState(chordNames, chosenInversions, chordType)
     
