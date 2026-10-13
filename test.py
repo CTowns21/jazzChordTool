@@ -9,13 +9,6 @@ import os
 import sys
 import json
 
-with open('musicalBuildingBlocks/notes.json', 'r') as file:
-    notes = json.load(file)
-with open('musicalBuildingBlocks/scales.json', 'r') as file:
-    scales = json.load(file)
-with open('musicalBuildingBlocks/chords.json', 'r') as file:
-    chords = json.load(file)
-
 def clearScreen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -31,8 +24,7 @@ def displayState(chordNames, chosenInversions, chordType=None):
 def shouldContinue():
 
     while True:
-        userInput = input("Add another chord? (y/n)").strip().lower()
-        clearScreen()
+        userInput = input("Add another chord? Type [Enter] or no").strip().lower()
 
         if userInput in ['y', 'yes', '']:
             return True
@@ -43,10 +35,9 @@ def shouldContinue():
 
 def getRootNote(chordType, num):
 
-    # Get input
     while True:
         userInput = input(
-            f"Chord #{num+1}\nChord Type: {chordType}\nChoose a root note (or type 'done'): "
+            f"Chord Type: {chordType}\nChoose a root note (or type 'done'): "
         ).strip()
 
         if userInput.lower() == "done":
@@ -54,29 +45,20 @@ def getRootNote(chordType, num):
 
         if userInput in notes.keys():
             result = userInput
-            # Clear the terminal screen
-            clearScreen()
             break
         else:
-            # Clear the terminal screen
-            clearScreen()
             print("Please enter a valid root note you stupid idiot chop hoe!")
 
     return result
 
 def getScaleType(chordType, rootNote, num):
 
-    # Get input
     while True:
-        userInput = input(f"Chord #{num+1}\nChord Type: {chordType}\nRoot Note: {rootNote}\nChoose a scale type: ")
+        userInput = input(f"Chord Type: {chordType}\nRoot Note: {rootNote}\nChoose a scale type: ")
         if userInput in scales.keys():
             result = userInput
-            # Clear the terminal screen
-            clearScreen()
             break
         else:
-            # Clear the terminal screen
-            clearScreen()
             print("Please enter a valid scale type you stupid idiot chop hoe!")
 
     return result
@@ -87,17 +69,12 @@ def getChordType():
     for type, recipe in chords.items():
         print(f"{type}")
 
-    # Get input
     while True:
         userInput = input("\n\nChoose a chord type: ")
         if userInput in chords.keys():
             result = userInput
-            # Clear the terminal screen
-            clearScreen()
             break
         else:
-            # Clear the terminal screen
-            clearScreen()
             print("Please enter a valid chord type you stupid idiot chop hoe!")
 
     return result
@@ -175,13 +152,6 @@ def runCalculations(inputChords):
 
     return chosenInversions
 
-def displayChosenInversions(chordNames, chosenInversions):
-
-    print("Current Inversions:")
-    for name, inversion in zip(chordNames, chosenInversions):
-        print(f"{name}: {inversion}")
-    print()
-
 def main():
 
     chordType = getChordType()
@@ -196,6 +166,8 @@ def main():
         rootNote  = getRootNote(chordType, num)
         if not rootNote:
             break
+
+        displayState(chordNames, chosenInversions, chordType)
         scaleType = getScaleType(chordType, rootNote, num)
 
         chordName = f"{rootNote} {scaleType} {chordType}"
@@ -211,12 +183,20 @@ def main():
             bestInversion = chooseBestInversion(previousChord, chordNotes)
             chosenInversions.append(bestInversion)
 
-        displayChosenInversions(chordNames, chosenInversions)
+        displayState(chordNames, chosenInversions, chordType)
     
         if not shouldContinue():
             break
 
 if __name__ == "__main__":
-    # Clear the terminal screen
+
+    # File loading
+    with open('musicalBuildingBlocks/notes.json', 'r') as file:
+        notes = json.load(file)
+    with open('musicalBuildingBlocks/scales.json', 'r') as file:
+        scales = json.load(file)
+    with open('musicalBuildingBlocks/chords.json', 'r') as file:
+        chords = json.load(file)
+
     clearScreen()
     main()
