@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Module Name: test.py
-Description: A proof of concept to show that I can output the notes of a triad from user input
+Module Name: jazzChordTool.py
+Description: A CLI tool to determine the least-distance-inversion for a chord progression
 Author: Carson Towns
 """
 
