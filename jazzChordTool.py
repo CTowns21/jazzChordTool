@@ -7,7 +7,6 @@ Author: Carson Towns
 
 import os
 import sys
-import json
 
 chordFormulas = {
     "major":     [0, 4, 7],
@@ -58,17 +57,6 @@ pitchToName = {
     11: "B"
 }
 
-def loadMusicalData():
-
-    with open('musicalBuildingBlocks/notes.json', 'r') as file:
-        notes = json.load(file)
-    with open('musicalBuildingBlocks/scales.json', 'r') as file:
-        scales = json.load(file)
-    with open('musicalBuildingBlocks/chords.json', 'r') as file:
-        chords = json.load(file)
-
-    return notes, scales, chords
-
 def clearScreen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -111,49 +99,24 @@ def getRootNote(chordType, num):
 
     return result
 
-def getScaleType(chordType, rootNote, num):
-
-    while True:
-        userInput = input(f"Chord Type: {chordType}\nRoot Note: {rootNote}\nChoose a scale type: ")
-        if userInput in scales.keys():
-            result = userInput
-            break
-        else:
-            print("Please enter a valid scale type you stupid idiot chop hoe!")
-
-    return result
-
 def getChordType():
 
-    # Print choices
-    for type, recipe in chords.items():
-        print(f"{type}")
-
+    for chordType in chordFormulas.keys():
+        print(chordType)
+    
     while True:
-        userInput = input("\n\nChoose a chord type: ")
-        if userInput in chords.keys():
-            result = userInput
-            break
+        userInput = input("\n\nChoose a chord type: ").strip()
+        if userInput in chordFormulas.keys():
+            return userInput
         else:
             print("Please enter a valid chord type you stupid idiot chop hoe!")
 
-    return result
+def assembleChordFromInputs(rootNote, chordType):
 
-def assembleChordFromInputs(rootNote, scaleType, chordType):
+    rootValue = notes[rootNote]
+    intervals = chordFormulas[chordType]
 
-    # Create initial mapping and get needed adjustment
-    baseRecipe = scales[f"{scaleType}"]
-    adjustmentValue = notes[rootNote]
-    
-    # Adjust based off values greater than 7 and loop around
-    realRecipe = [(x + adjustmentValue) % 12 for x in baseRecipe]
-
-    # Swap note values with keys to retrieve easier
-    val_to_key = {v: k for k, v in notes.items()}
-    swappedScale = [val_to_key[val] for val in realRecipe]
-
-    # Take just desired chord notes
-    return [swappedScale[int(x-1)] for x in chords[f"{chordType}"]]
+    return [pitchToName[(rootValue + interval) % 12] for interval in intervals]
 
 def createChordInversions(chordNotes):
     inversions = []
@@ -203,13 +166,10 @@ def main():
         if rootNote is None:
             break
 
-        displayState(chordNames, chosenInversions, chordType)
-        scaleType = getScaleType(chordType, rootNote, len(chordNames))
-
-        chordName = f"{rootNote} {scaleType} {chordType}"
+        chordName = f"{rootNote} {chordType}"
         chordNames.append(chordName)
 
-        chordNotes = assembleChordFromInputs(rootNote, scaleType, chordType)
+        chordNotes = assembleChordFromInputs(rootNote, chordType)
 
         if not chosenInversions:
             # First chord stays as written
@@ -225,6 +185,4 @@ def main():
             break
 
 if __name__ == "__main__":
-
-    notes, scales, chords = loadMusicalData()
     main()
