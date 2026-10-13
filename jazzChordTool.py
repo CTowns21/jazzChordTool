@@ -9,11 +9,13 @@ import os
 import sys
 
 chordFormulas = {
-    "major":     [0, 4, 7],
-    "minor":     [0, 3, 7],
-    "dominant7": [0, 4, 7, 10],
-    "major7":    [0, 4, 7, 11],
-    "minor7":    [0, 3, 7, 10],
+    "major":      [0, 4, 7],
+    "minor":      [0, 3, 7],
+    "diminished": [0, 3, 6],
+    "augmented":  [0, 4, 8],
+    "dominant7":  [0, 4, 7, 10],
+    "major7":     [0, 4, 7, 11],
+    "minor7":     [0, 3, 7, 10],
 }
 
 # Many-to-One input mapping
@@ -57,6 +59,22 @@ pitchToName = {
     11: "B"
 }
 
+qualityAliases = {
+    "augmented": ["aug", "+"],
+    "diminished": ["dim", "o"],
+    "dominant7": ["7"],
+    "major": ["", "maj", "major"],
+    "major7": ["M7", "maj7", "major7"],
+    "minor": ["m", "min", "minor", "-"],
+    "minor7": ["m7", "min7", "minor7", "-7"]
+}
+
+qualityMap = {
+    alias: chordType
+    for chordType, aliases in qualityAliases.items()
+    for alias in aliases
+}
+
 def clearScreen():
     os.system('cls' if os.name == 'nt' else 'clear')
 
@@ -78,14 +96,14 @@ def getChordSymbol():
 
         if userInput.lower() == "done":
             return None
-        
+
         try:
             parseChordSymbol(userInput)
             return userInput
         except ValueError as e:
             print(e)
 
-def buildChordFromInputs(symbol):
+def buildChordFromSymbol(symbol):
     rootNote, chordType = parseChordSymbol(symbol)
     rootValue = notes[rootNote]
     intervals = chordFormulas[chordType]
@@ -127,21 +145,11 @@ def parseChordSymbol(symbol):
 
     if rootNote not in notes:
         raise ValueError(f"Invalid root note: {rootNote}, stupid idiot chop hoe!")
-    
-    if qualityText in ["", "maj", "major"]:
-        chordType = "major"
-    elif qualityText in ["m", "min", "minor", "-"]:
-        chordType = "minor"
-    elif qualityText == "7":
-        chordType = "dominant7"
-    elif qualityText in ["M7", "maj7", "major7"]:
-        chordType = "major7"
-    elif qualityText in ["m7", "min7", "minor7", "-7"]:
-        chordType = "minor7"
-    else:
+
+    if qualityText not in qualityMap:
         raise ValueError(f"Unsupported chord quality: {qualityText}, stupid idiot chop hoe!")
-    
-    return rootNote, chordType
+
+    return rootNote, qualityMap[qualityText]
 
 def chooseBestInversion(previousChord, newChord):
     bestInversion = None
@@ -155,23 +163,22 @@ def chooseBestInversion(previousChord, newChord):
         if distanceScore < bestDistanceScore:
             bestDistanceScore = distanceScore
             bestInversion = inversion
-    
+
     return bestInversion
 
 def main():
 
     chordNames = []
     chosenInversions = []
+    displayState(chordNames, chosenInversions)
 
     while True:
-
-        displayState(chordNames, chosenInversions)
 
         chordSymbol = getChordSymbol()
         if chordSymbol is None:
             break
-        
-        chordNotes = buildChordFromInputs(chordSymbol)
+
+        chordNotes = buildChordFromSymbol(chordSymbol)
 
         # Validating that chords have same amount of notes for now
         if chosenInversions and len(chordNotes) != len(chosenInversions[0]):
@@ -188,6 +195,7 @@ def main():
             chosenInversions.append(
                 chooseBestInversion(chosenInversions[-1], chordNotes)
             )
-    
+        displayState(chordNames, chosenInversions)
+
 if __name__ == "__main__":
     main()
