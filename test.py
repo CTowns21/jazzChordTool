@@ -112,28 +112,59 @@ def getChordInversions(chordNotes):
         inversions.append(chordNotes[i:] + chordNotes[:i])
     return inversions
 
+def getDistanceScores(chordA, chordB):
+
+    distanceScore = 0
+
+    for i in range(len(chordA)):
+        firstValue = abs(notes[chordA[i]] - notes[chordB[i]])
+        secondValue = abs(notes[chordA[i]] - (notes[chordB[i]] + 12))
+        distanceScore += min(firstValue, secondValue)
+
+    return distanceScore
+
+def runCalculations(inputChords):
+
+    chordList = list(inputChords.values())
+    chosenInversions = [chordList[0]]
+    previousChord = chordList[0]
+
+    for nextChord in chordList[1:]:
+        bestInversion = None
+        bestDistanceScore = sys.maxsize
+
+        # Calculate distances and add best inversion to chosenInversion list
+        inversions = getChordInversions(nextChord)
+        for currentChord in inversions: # Ex: ['G', 'Bb', 'D']
+            distanceScore = getDistanceScores(previousChord, currentChord)
+
+            if distanceScore < bestDistanceScore:
+                bestDistanceScore = distanceScore
+                bestInversion = currentChord
+
+        chosenInversions.append(bestInversion)
+        previousChord = bestInversion
+
+    return chosenInversions
+
 def main():
 
     # Collecting input
     chordType = getChordType() # Gathering only once so we don't have mismatching amounts of notes; TODO: solve later
     numberOfChords = getNumberOfChords()
-    finalChords = {}
+    inputChords = {}
     for num in range(numberOfChords):
         rootNote  = getRootNote(chordType, num)
         scaleType = getScaleType(chordType, rootNote, num)
         chordName = f"{rootNote} {scaleType} {chordType}"
-        finalChords[chordName] = calculateChord(rootNote, scaleType, chordType)
+        inputChords[chordName] = calculateChord(rootNote, scaleType, chordType)
 
-    # Now need to start doing calculation stuff
-    # First will be unchanged TODO: solve this; precompare and then we choose optimal first chord?
-    chosenInversions = list(finalChords.values())[0]
-    # Example: {'G Minor Triad': ['G', 'Bb', 'D'], 'B Major Triad': ['B', 'Eb', 'Gb']}
-    for chord in finalChords.values():
-        inversions = getChordInversions(chord)
-        print("debug")
+    finalInversions = runCalculations(inputChords)
 
-    # print(*finalChords.keys(), sep="\n")
-    # print(*finalChords.values(), sep="\n")
+    # Printing results
+    os.system('cls' if os.name == 'nt' else 'clear')
+    for name, inversion in zip(inputChords.keys(), finalInversions):
+        print(f"{name}: {inversion}")
 
 if __name__ == "__main__":
     # Clear the terminal screen
