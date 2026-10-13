@@ -16,38 +16,50 @@ with open('musicalBuildingBlocks/scales.json', 'r') as file:
 with open('musicalBuildingBlocks/chords.json', 'r') as file:
     chords = json.load(file)
 
-def getNumberOfChords():
+def clearScreen():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
-    # Get input
+def displayState(chordNames, chosenInversions, chordType=None):
+    clearScreen()
+
+    if chordNames:
+        print("Chosen Inversions:")
+        for name, inversion in zip(chordNames, chosenInversions):
+            print(f"{name}: {inversion}")
+    print()
+
+def shouldContinue():
+
     while True:
-        userInput = input("How many chords will you need: ")
-        try:
-            result = int(userInput)
-            os.system('cls' if os.name == 'nt' else 'clear')
-            
-            if result > 1:
-                return result
-            else:
-                print("Please enter a valid number you stupid idiot chop hoe!")
+        userInput = input("Add another chord? (y/n)").strip().lower()
+        clearScreen()
 
-        except ValueError:
-            # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print("Please enter a valid number you stupid idiot chop hoe!")
+        if userInput in ['y', 'yes', '']:
+            return True
+        elif userInput in ['n', 'no']:
+            return False
+        else:
+            print("Please enter a valid answer you stupid idiot chop hoe! (y/n)")
 
 def getRootNote(chordType, num):
 
     # Get input
     while True:
-        userInput = input(f"Chord #{num+1}\nChord Type: {chordType}\nChoose a root note: ")
+        userInput = input(
+            f"Chord #{num+1}\nChord Type: {chordType}\nChoose a root note (or type 'done'): "
+        ).strip()
+
+        if userInput.lower() == "done":
+            return None
+
         if userInput in notes.keys():
             result = userInput
             # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
+            clearScreen()
             break
         else:
             # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
+            clearScreen()
             print("Please enter a valid root note you stupid idiot chop hoe!")
 
     return result
@@ -60,11 +72,11 @@ def getScaleType(chordType, rootNote, num):
         if userInput in scales.keys():
             result = userInput
             # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
+            clearScreen()
             break
         else:
             # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
+            clearScreen()
             print("Please enter a valid scale type you stupid idiot chop hoe!")
 
     return result
@@ -81,11 +93,11 @@ def getChordType():
         if userInput in chords.keys():
             result = userInput
             # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
+            clearScreen()
             break
         else:
             # Clear the terminal screen
-            os.system('cls' if os.name == 'nt' else 'clear')
+            clearScreen()
             print("Please enter a valid chord type you stupid idiot chop hoe!")
 
     return result
@@ -114,7 +126,7 @@ def getChordInversions(chordNotes):
         inversions.append(chordNotes[i:] + chordNotes[:i])
     return inversions
 
-def getDistanceScores(chordA, chordB):
+def getDistanceScore(chordA, chordB):
 
     distanceScore = 0
 
@@ -124,6 +136,21 @@ def getDistanceScores(chordA, chordB):
         distanceScore += min(firstValue, secondValue)
 
     return distanceScore
+
+def chooseBestInversion(previousChord, newChord):
+    bestInversion = None
+    bestDistanceScore = sys.maxsize
+
+    inversions = getChordInversions(newChord)
+
+    for inversion in inversions:
+        distanceScore = getDistanceScore(previousChord, inversion)
+
+        if distanceScore < bestDistanceScore:
+            bestDistanceScore = distanceScore
+            bestInversion = inversion
+    
+    return bestInversion
 
 def runCalculations(inputChords):
 
@@ -135,10 +162,9 @@ def runCalculations(inputChords):
         bestInversion = None
         bestDistanceScore = sys.maxsize
 
-        # Calculate distances and add best inversion to chosenInversion list
         inversions = getChordInversions(nextChord)
-        for currentChord in inversions: # Ex: ['G', 'Bb', 'D']
-            distanceScore = getDistanceScores(previousChord, currentChord)
+        for currentChord in inversions:
+            distanceScore = getDistanceScore(previousChord, currentChord)
 
             if distanceScore < bestDistanceScore:
                 bestDistanceScore = distanceScore
@@ -149,26 +175,48 @@ def runCalculations(inputChords):
 
     return chosenInversions
 
+def displayChosenInversions(chordNames, chosenInversions):
+
+    print("Current Inversions:")
+    for name, inversion in zip(chordNames, chosenInversions):
+        print(f"{name}: {inversion}")
+    print()
+
 def main():
 
-    # Collecting input
-    chordType = getChordType() # Gathering only once so we don't have mismatching amounts of notes; TODO: solve later
-    numberOfChords = getNumberOfChords()
-    inputChords = {}
-    for num in range(numberOfChords):
+    chordType = getChordType()
+
+    chordNames = []
+    chosenInversions = []
+
+    while True:
+        num = len(chordNames)
+
+        displayState(chordNames, chosenInversions, chordType)
         rootNote  = getRootNote(chordType, num)
+        if not rootNote:
+            break
         scaleType = getScaleType(chordType, rootNote, num)
+
         chordName = f"{rootNote} {scaleType} {chordType}"
-        inputChords[chordName] = calculateChord(rootNote, scaleType, chordType)
+        chordNames.append(chordName)
 
-    finalInversions = runCalculations(inputChords)
+        chordNotes = calculateChord(rootNote, scaleType, chordType)
 
-    # Printing results
-    os.system('cls' if os.name == 'nt' else 'clear')
-    for name, inversion in zip(inputChords.keys(), finalInversions):
-        print(f"{name}: {inversion}")
+        if not chosenInversions:
+            # First chord stays as written
+            chosenInversions.append(chordNotes)
+        else:
+            previousChord = chosenInversions[-1]
+            bestInversion = chooseBestInversion(previousChord, chordNotes)
+            chosenInversions.append(bestInversion)
+
+        displayChosenInversions(chordNames, chosenInversions)
+    
+        if not shouldContinue():
+            break
 
 if __name__ == "__main__":
     # Clear the terminal screen
-    os.system('cls' if os.name == 'nt' else 'clear')
+    clearScreen()
     main()
