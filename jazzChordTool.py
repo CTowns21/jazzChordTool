@@ -20,27 +20,35 @@ from chordParser import (
 
 # ---------------------------------------------------------------------------
 # Settings you can tune by ear
+# For reference, MIDI values can be found here: https://computermusicresource.com/midikeys.html
 # ---------------------------------------------------------------------------
 
-VOICE_COUNT = 4             # notes per voicing (3 or 4)
-BOTTOM_FLOOR = 52           # E3: each voicing's lowest note lands in the octave above this
+VOICE_COUNT  = 4            # notes per voicing (3 or 4)
+BOTTOM_FLOOR = 52           # E2 in MIDI numbering. The first note of a built voicing is placed in the first matching octave
 CENTER_PITCH = 60           # voicings are gently pulled toward middle C
 
+# Transition scoring parameters
 MOVEMENT_WEIGHT = 1.0       # cost per semitone any voice moves
-LEAP_SIZE = 4               # a voice moving more than this many semitones...
-LEAP_PENALTY = 2.0          # ...costs this much extra
-REGISTER_WEIGHT = 0.25      # cost per semitone the voicing's average is off center
-SPAN_LIMIT = 12             # a voicing wider than this many semitones...
-SPAN_PENALTY = 2.0          # ...costs this much per extra semitone
+LEAP_SIZE       = 4         # a voice moving more than this many semitones...
+LEAP_PENALTY    = 2.0       # ...costs this much extra
+
+# Static voicing-shape scoring parameters
+REGISTER_WEIGHT   = 0.25    # cost per semitone the voicing's average is off center
+SPAN_LIMIT        = 12      # a voicing wider than this many semitones...
+SPAN_PENALTY      = 2.0     # ...costs this much per extra semitone
 INVERSION_PENALTY = 1.5     # plain inversions cost extra so named jazz voicings win close calls
 
-HALF_STEP_RESOLUTION_BONUS = 4.0    # 7th falls a half step onto the next chord's 3rd
+# Bonus for classic guide-tone behavior across chord changes
+HALF_STEP_RESOLUTION_BONUS  = 4.0   # 7th falls a half step onto the next chord's 3rd
 WHOLE_STEP_RESOLUTION_BONUS = 1.5   # 7th falls a whole step onto the next chord's 3rd
-COMMON_GUIDE_TONE_BONUS = 2.0       # 3rd stays put and becomes the next chord's 7th
+COMMON_GUIDE_TONE_BONUS     = 2.0   # 3rd stays put and becomes the next chord's 7th
 
-SEVENTHS = {"7", "6"}       # a 6 chord's 6th plays the role of the 7th
-GUIDE_DEGREES = {"3", "7", "6"}
-INVERSION_NAMES = ["root position", "1st inversion", "2nd inversion", "3rd inversion"]
+SEVENTHS        = {"7", "6"}        # a 6 chord's 6th plays the role of the 7th
+GUIDE_DEGREES   = {"3", "7", "6"}   # degrees visually highlighted in output
+INVERSION_NAMES = ["root position", # labels for rotated inversions
+                   "1st inversion",
+                   "2nd inversion",
+                   "3rd inversion"]
 
 
 # ---------------------------------------------------------------------------
@@ -49,13 +57,15 @@ INVERSION_NAMES = ["root position", "1st inversion", "2nd inversion", "3rd inver
 
 @dataclass
 class Voicing:
-    label: str
+    label: str      # human-readable label: shell, typeA, triad, etc.
     notes: list     # (degree, noteName, pitchClass), bottom to top
     pitches: list   # absolute pitch numbers (60 = middle C), bottom to top
 
 
 def placePitches(pitchClasses):
-    """Stack pitch classes upward, starting in the octave above BOTTOM_FLOOR."""
+    """ Stack pitch classes upward, starting in the octave above BOTTOM_FLOOR
+    """
+
     current = BOTTOM_FLOOR + (pitchClasses[0] - BOTTOM_FLOOR) % 12
     pitches = [current]
     for pc in pitchClasses[1:]:
@@ -75,8 +85,10 @@ def buildVoicing(chord, label, degrees):
 
 
 def chooseToneDegrees(chord):
-    """Pick up to VOICE_COUNT degrees to rotate through for the inversion voicings.
-    Chords with extra tones drop the least essential ones first."""
+    """ Pick up to VOICE_COUNT degrees to rotate through for the inversion voicings.
+        Chords with extra tones drop the least essential ones first
+    """
+
     present = [d for d in DEGREE_ORDER if d in chord.degrees]
 
     priority = ["3", "7", "6", "1", "5", "9", "11", "13"]
@@ -85,6 +97,9 @@ def chooseToneDegrees(chord):
 
 
 def candidateVoicings(chord):
+    """
+    """
+
     candidates = []
 
     # Named templates (shell, Type A, Type B...) with the right number of notes
@@ -107,6 +122,9 @@ def candidateVoicings(chord):
 # ---------------------------------------------------------------------------
 
 def guideToneBonus(previous, new):
+    """
+    """
+
     bonus = 0.0
     for (prevDegree, _, _), prevPitch in zip(previous.notes, previous.pitches):
         for (newDegree, _, _), newPitch in zip(new.notes, new.pitches):
@@ -122,6 +140,9 @@ def guideToneBonus(previous, new):
 
 
 def transitionCost(previous, new):
+    """
+    """
+
     movements = [abs(a - b) for a, b in zip(previous.pitches, new.pitches)]
     cost = MOVEMENT_WEIGHT * sum(movements)
     cost += LEAP_PENALTY * sum(1 for m in movements if m > LEAP_SIZE)
@@ -129,7 +150,9 @@ def transitionCost(previous, new):
 
 
 def voicingCost(voicing):
-    """Cost of a voicing on its own: register, width, and whether it's a named voicing."""
+    """ Cost of a voicing on its own: register, width, and whether it's a named voicing
+    """
+
     average = sum(voicing.pitches) / len(voicing.pitches)
     span = voicing.pitches[-1] - voicing.pitches[0]
 
@@ -141,9 +164,11 @@ def voicingCost(voicing):
 
 
 def chooseVoicings(chords):
-    """Find the cheapest path through every chord's candidate voicings.
-    Because it optimizes the whole progression, earlier chords can change
-    as you add later ones."""
+    """ Find the cheapest path through every chord's candidate voicings.
+        Because it optimizes the whole progression, earlier chords can change
+        as you add later ones
+    """
+
     if not chords:
         return []
 
@@ -174,14 +199,23 @@ def chooseVoicings(chords):
 # ---------------------------------------------------------------------------
 
 def clearScreen():
+    """
+    """
+
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def bassOf(chord):
+    """
+    """
+
     return bassName(chord) or chord.rootLetter + ACC_TEXT[chord.rootAccidental]
 
 
 def formatVoicing(voicing):
+    """
+    """
+
     return " ".join(
         f"[{name}]" if degree in GUIDE_DEGREES else name
         for degree, name, _ in voicing.notes
@@ -189,10 +223,14 @@ def formatVoicing(voicing):
 
 
 def displayState(chords, voicings):
+    """
+    """
+
     clearScreen()
 
     if chords:
         print(f"{'Chord':<12}{'Bass':<6}{'Voicing':<16}Notes (low to high)")
+        print("-----------------------------------------------------")
         for chord, voicing in zip(chords, voicings):
             print(f"{chord.symbol:<12}{bassOf(chord):<6}{voicing.label:<16}{formatVoicing(voicing)}")
         print("\n[ ] = guide tone (3rd / 7th)")
@@ -200,7 +238,9 @@ def displayState(chords, voicings):
 
 
 def getUserInput():
-    """Returns ('done', None), ('undo', None), or ('chord', Chord)."""
+    """ Returns ('done', None), ('undo', None), or ('chord', Chord)
+    """
+
     while True:
         userInput = input(
             "Enter chord symbol ('undo' to remove the last one, 'done' to finish): "
