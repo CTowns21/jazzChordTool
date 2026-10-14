@@ -7,6 +7,7 @@ Author: Carson Towns
 
 import os
 import sys
+from chordParser import parseChordSymbol, availableVoicings, bassName
 
 chordFormulas = {
     "major":      [0, 4, 7],
@@ -85,23 +86,27 @@ def displayState(chordNames, chosenInversions):
         print("Chosen Inversions:")
         for name, inversion in zip(chordNames, chosenInversions):
             print(f"{name}: {inversion}")
-    print()
 
 def getChordSymbol():
 
     while True:
-        userInput = input(
+        symbol = input(
             "Enter chord symbol (or type 'done'): "
         ).strip()
 
-        if userInput.lower() == "done":
+        if symbol.lower() == "done":
             return None
 
         try:
-            parseChordSymbol(userInput)
-            return userInput
+            chord = parseChordSymbol(symbol)
         except ValueError as e:
             print(e)
+            continue
+
+        if chord.bassLetter:
+            print(f"  Bass: {bassName(chord)}")
+        for name, notes in availableVoicings(chord).items():
+            print(f"  {name:6} {' '.join(n for n, _ in notes)}")
 
 def buildChordFromSymbol(symbol):
     rootNote, chordType = parseChordSymbol(symbol)
@@ -128,28 +133,6 @@ def calculateDistanceScore(chordA, chordB):
         distanceScore += min(firstValue, secondValue)
 
     return distanceScore
-
-def parseChordSymbol(symbol):
-
-    symbol = symbol.strip()
-
-    if not symbol:
-        raise ValueError("Chord symbol cannot be empty, stupid idiot chop hoe!")
-
-    if len(symbol) >= 2 and symbol[1] in ['#', 'b']:
-        rootNote    = symbol[:2]
-        qualityText = symbol[2:]
-    else:
-        rootNote    = symbol[:1]
-        qualityText = symbol[1:]
-
-    if rootNote not in notes:
-        raise ValueError(f"Invalid root note: {rootNote}, stupid idiot chop hoe!")
-
-    if qualityText not in qualityMap:
-        raise ValueError(f"Unsupported chord quality: {qualityText}, stupid idiot chop hoe!")
-
-    return rootNote, qualityMap[qualityText]
 
 def chooseBestInversion(previousChord, newChord):
     bestInversion = None
