@@ -125,8 +125,8 @@ def splitSlash(symbol):
         Returns:
             head = 'Fadd9'
             tail = 'A'
-                OR
-            symbol remains unchanged if 
+            -OR-
+            symbol remains unchanged if no slash present
 
     """
 
@@ -141,7 +141,7 @@ def parseModifiers(text):
         Args: modifier text ('b9#11' (from 'Emb9#11/D'))
         Returns:
             found = [('9', 1), ('11', 6)]
-                OR
+            -OR-
             None (if any leftover text is unsupported)
     """
 
@@ -233,7 +233,7 @@ def semitonesFor(chord, degree):
         Args:
             chord = chord obj
             degree = degree value
-        Returns: semitones value, 9th is special case    
+        Returns: semitones value (9th is special case)
     """
 
     degree = effectiveDegree(chord, degree)
@@ -242,16 +242,25 @@ def semitonesFor(chord, degree):
     return DEFAULT_9TH if degree == "9" else None
 
 def spellPitch(pc, letter):
-    """ Compute appropriate accidental
-        Example: pc = 3, letter = E -> Eb
-        Example: pc = 3, letter = D -> D# """
+    """ Compute appropriate accidental based on letter
+        Args:
+            pc = 3
+            letter = E
+        Returns: 'Eb'
+    """
 
     offset = (pc - LETTER_TO_PC[letter] + 6) % 12 - 6
     return letter + ACC_TEXT[offset]
 
 
 def spellDegree(chord, degree):
-    """"""
+    """ Spell a chord degree correctly for given root
+
+        Args:
+            chord = C
+            degree = 3
+        Returns: 'E' (as opposed to 'Fb' or 'D##')
+    """
 
     degree = effectiveDegree(chord, degree)
     letter = LETTERS[(LETTERS.index(chord.rootLetter) + DEGREE_LETTER_STEPS[degree]) % 7]
@@ -259,13 +268,24 @@ def spellDegree(chord, degree):
 
 
 def chordToneNames(chord):
-    """"""
+    """ Return all explicitly present chord tones as correctly spelled note names
+
+        Args: chord obj ('Em7')
+        Returns: '['E', 'G', 'B', 'D']'
+    """
 
     return [spellDegree(chord, d) for d in DEGREE_ORDER if d in chord.degrees]
 
 
 def bassName(chord):
-    """"""
+    """ Return bass note of given chord
+
+        Args: chord obj ('Eb7/D')
+        Returns:
+            'D'
+            -OR-
+            'None' if none present
+    """
 
     if chord.bassLetter is None:
         return None
@@ -274,7 +294,17 @@ def bassName(chord):
 
 
 def availableVoicings(chord):
-    """ {templateName: [(noteName, pitchClass), ...]} ordered bottom to top """
+    """ Return named voicing templates a given chord can support
+
+        Args: chord obj ('Ebm7add9/D')
+        Returns:
+            {
+                'triad': [('Eb', 3), ('Gb', 6), ('Bb', 10)],
+                'shell': [('Eb', 3), ('Gb', 6), ('Db', 1)],
+                'typeA': [('Gb', 6), ('Bb', 10), ('Db', 1), ('F', 5)],
+                'typeB': [('Db', 1), ('F', 5), ('Gb', 6), ('Bb', 10)]
+            }
+    """
     return {
         name: [(spellDegree(chord, d), (chord.rootPc + semitonesFor(chord, d)) % 12)
                for d in degrees]
