@@ -228,7 +228,13 @@ def effectiveDegree(chord, degree):
 
 def semitonesFor(chord, degree):
     """ Semitones above root, or None if the chord can't supply it.
-        The 9th defaults to natural unless the symbol altered it """
+        The 9th defaults to natural unless the symbol altered it
+
+        Args:
+            chord = chord obj
+            degree = degree value
+        Returns: semitones value, 9th is special case    
+    """
 
     degree = effectiveDegree(chord, degree)
     if degree in chord.degrees:
