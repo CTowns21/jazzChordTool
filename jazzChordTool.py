@@ -36,7 +36,7 @@ LEAP_PENALTY    = 2.0       # ...costs this much extra
 REGISTER_WEIGHT   = 0.25    # cost per semitone the voicing's average is off center
 SPAN_LIMIT        = 12      # a voicing wider than this many semitones...
 SPAN_PENALTY      = 2.0     # ...costs this much per extra semitone
-INVERSION_PENALTY = 1.5     # plain inversions cost extra so named jazz voicings win close calls
+INVERSION_PENALTY = 1.5     # plain inversions cost extra so that named jazz voicings win close calls
 
 # Bonus for classic guide-tone behavior across chord changes
 HALF_STEP_RESOLUTION_BONUS  = 4.0   # 7th falls a half step onto the next chord's 3rd
@@ -63,41 +63,70 @@ class Voicing:
 
 
 def placePitches(pitchClasses):
-    """ Stack pitch classes upward, starting in the octave above BOTTOM_FLOOR
+    """ Convert an ordered list of pitch classes into ascending absolute pitches
+
+        Important behavior:
+        - Start the bottom note in the first matching octave above BOTTOM_FLOOR
+        - Each subsequent note is stacked upward to the next occurrence of its pitch class
+        - This guarantees strictly ascending pitches
+    
+        Example: If pitch classes are [11, 2, 5]   (B-1, D-1, F-1)
+                     this may produce [59, 62, 65] (B2,  D3,  F3)
+
     """
 
     current = BOTTOM_FLOOR + (pitchClasses[0] - BOTTOM_FLOOR) % 12
     pitches = [current]
+
     for pc in pitchClasses[1:]:
         current += (pc - current) % 12 or 12
         pitches.append(current)
+
     return pitches
 
 
 def buildVoicing(chord, label, degrees):
+    """ Build one Voicing object from a chord and an ordered degree list
+
+        For each degree:
+        - Resolve special cases like 6 standing in for 7
+        - Spell the note name correctly
+        - Compute pitch class
+        - Finally place all notes into ascending absolute pitches
+    """
+
     notes = [
         (effectiveDegree(chord, d),
          spellDegree(chord, d),
          (chord.rootPc + semitonesFor(chord, d)) % 12)
         for d in degrees
     ]
+
     return Voicing(label, notes, placePitches([pc for _, _, pc in notes]))
 
 
 def chooseToneDegrees(chord):
-    """ Pick up to VOICE_COUNT degrees to rotate through for the inversion voicings.
-        Chords with extra tones drop the least essential ones first
+    """ Pick which chord tones should be used for plain inversion candidates
+
+        If the chord has more tones than VOICE_COUNT allows, keep the most important ones:
+            3rd, 7th, 6th, root, 5th, then extensions
+        
+        Returns chosen degrees in canonical DEGREE_ORDER, not priority order
     """
 
     present = [d for d in DEGREE_ORDER if d in chord.degrees]
-
     priority = ["3", "7", "6", "1", "5", "9", "11", "13"]
     kept = sorted(present, key=priority.index)[:VOICE_COUNT]
+
     return [d for d in DEGREE_ORDER if d in kept]
 
 
 def candidateVoicings(chord):
-    """
+    """ Generate all voicings considered for a single chord
+
+        Two categories:
+        1. Named templates (shell, typeA, typeB, etc.) if the chord can support them
+        2. Rotated inversions of selected chord tones
     """
 
     candidates = []
@@ -114,6 +143,7 @@ def candidateVoicings(chord):
         if len(rotated) < VOICE_COUNT:
             rotated = rotated + [rotated[0]]    # triads: double the bottom note on top
         candidates.append(buildVoicing(chord, INVERSION_NAMES[i], rotated))
+
     return candidates
 
 
@@ -122,10 +152,17 @@ def candidateVoicings(chord):
 # ---------------------------------------------------------------------------
 
 def guideToneBonus(previous, new):
-    """
+    """ Reward musically desirable guide-tone motion between two voicings
+
+        Looks at every note pair across previous and new voicings and awards bonues when:
+        - Previous 7th (or 6 in a 6 chord role) resolves down to a new 3rd
+        - Previous 3rd stays put and becomes new 7th/6th
+
+        This is a "bonus", so caller subtracts it from cost later
     """
 
     bonus = 0.0
+
     for (prevDegree, _, _), prevPitch in zip(previous.notes, previous.pitches):
         for (newDegree, _, _), newPitch in zip(new.notes, new.pitches):
             step = newPitch - prevPitch
@@ -136,21 +173,38 @@ def guideToneBonus(previous, new):
                     bonus += WHOLE_STEP_RESOLUTION_BONUS
             elif prevDegree == "3" and newDegree in SEVENTHS and step == 0:
                 bonus += COMMON_GUIDE_TONE_BONUS
+
     return bonus
 
 
 def transitionCost(previous, new):
-    """
+    """ Cost of moving from one voicing to the next
+
+        Voicing movement is compared by index:
+        - Lowest voice -> Lowest voice
+        - Next voice   -> Next voice
+        - etc.
+
+        Cost components:
+        - Sum of absolute semitone movement
+        - Extra penalty for large leaps
+        - Subtract guide-tone bonuses
     """
 
     movements = [abs(a - b) for a, b in zip(previous.pitches, new.pitches)]
     cost = MOVEMENT_WEIGHT * sum(movements)
     cost += LEAP_PENALTY * sum(1 for m in movements if m > LEAP_SIZE)
+
     return cost - guideToneBonus(previous, new)
 
 
 def voicingCost(voicing):
-    """ Cost of a voicing on its own: register, width, and whether it's a named voicing
+    """ Static cost of one voicing by itself
+
+        Penalizes:
+        - Voicings whose average register is far from center
+        - Voicings wider than SPAN_LIMIT
+        - Plain inversions, so named jazz voicings win close comparisons
     """
 
     average = sum(voicing.pitches) / len(voicing.pitches)
@@ -160,13 +214,19 @@ def voicingCost(voicing):
     cost += SPAN_PENALTY * max(0, span - SPAN_LIMIT)
     if voicing.label not in VOICING_TEMPLATES:
         cost += INVERSION_PENALTY
+
     return cost
 
 
 def chooseVoicings(chords):
-    """ Find the cheapest path through every chord's candidate voicings.
-        Because it optimizes the whole progression, earlier chords can change
-        as you add later ones
+    """ Choose the best full-sequence voicing path for the given chord progression
+
+        This is dynamic programming over a layered graph:
+        - Each chord has several candidate voicings
+        - Each candidate can transition to each candidate of the next chord
+        - Total cost = sum of per-voicing costs + transistion costs
+
+        The algorithm only keeps the cheaptest path to each candidate state
     """
 
     if not chords:
@@ -191,6 +251,7 @@ def chooseVoicings(chords):
     for i in range(len(best) - 1, -1, -1):
         path.append(candidateLists[i][j])
         j = best[i][j][1]
+
     return path[::-1]
 
 
@@ -199,22 +260,19 @@ def chooseVoicings(chords):
 # ---------------------------------------------------------------------------
 
 def clearScreen():
-    """
-    """
+    """ Clear terminal screen """
 
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
 def bassOf(chord):
-    """
-    """
+    """ Display slash bass is present; otherwise display root """
 
     return bassName(chord) or chord.rootLetter + ACC_TEXT[chord.rootAccidental]
 
 
 def formatVoicing(voicing):
-    """
-    """
+    """ Format note names for terminal output; guide tones shown in brackets """
 
     return " ".join(
         f"[{name}]" if degree in GUIDE_DEGREES else name
@@ -223,7 +281,8 @@ def formatVoicing(voicing):
 
 
 def displayState(chords, voicings):
-    """
+    """ Redraw the current progression and chosen voicings
+        Each newly entered chord can cause earlier voicings to change after re-optimization
     """
 
     clearScreen()
@@ -238,8 +297,7 @@ def displayState(chords, voicings):
 
 
 def getUserInput():
-    """ Returns ('done', None), ('undo', None), or ('chord', Chord)
-    """
+    """ Read and interpret a user command """
 
     while True:
         userInput = input(
@@ -258,6 +316,18 @@ def getUserInput():
 
 
 def main():
+    """ Main interactive program loop
+
+        Workflow:
+            1. Maintain list of parsed chords
+            2. Recompute optimal voicings after every change
+            3. Redraw display each time
+        
+        Important design detail:
+        - Voicings are optimized for the full progression so far,
+          not chosen greedily one chord at a time
+    """
+
     chords = []
     voicings = []
     displayState(chords, voicings)
