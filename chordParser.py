@@ -75,6 +75,7 @@ MODIFIERS = {
 VOICING_TEMPLATES = {
     "triad": ["1", "3", "5"],
     "shell": ["1", "3", "7"],
+    "shellB": ["1", "7", "3"],   # alternate shell: root-7th-3rd, so guide tones can alternate
     "typeA": ["3", "5", "7", "9"],
     "typeB": ["7", "9", "3", "5"],
 }
