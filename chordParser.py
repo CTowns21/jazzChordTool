@@ -7,7 +7,7 @@ Author: Carson Towns
 """
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 LETTERS = "CDEFGAB"
 LETTER_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11} # Pitch-class mapping
@@ -211,7 +211,7 @@ def parseChordSymbol(symbol):
         bassLetter, bassAccidental = NOTE_RE.match(bassText).groups()
         chord.bassLetter = bassLetter
         chord.bassAccidental = ACC_TO_INT[bassAccidental]
-    return chord
+    return simplifyRoot(chord)    # avoids double accidentals like B# D## F##
 
 def effectiveDegree(chord, degree):
     """ For 6 chords, treat the 6th like the "seventh-ish" guide tone if no 7 is present
@@ -242,19 +242,46 @@ def semitonesFor(chord, degree):
         return chord.degrees[degree]
     return DEFAULT_9TH if degree == "9" else None
 
-def spellPitch(pc, letter):
+def simplestSpelling(pc, nominalLetter):
+    """ Respell a pitch with at most one accidental, staying as close as possible
+        to the letter it was nominally supposed to use
+
+        Args:
+            pc = 9
+            nominalLetter = B   (the spelling would have been B##)
+        Returns: ('A', 0)
+    """
+
+    nominal = LETTERS.index(nominalLetter)
+    candidates = []
+    for letter in LETTERS:
+        offset = (pc - LETTER_TO_PC[letter] + 6) % 12 - 6
+        if abs(offset) <= 1:
+            gap = (LETTERS.index(letter) - nominal) % 7
+            candidates.append((abs(offset), min(gap, 7 - gap), letter, offset))
+
+    _, _, letter, offset = min(candidates)
+    return letter, offset
+
+
+def spellPitch(pc, letter, allowDouble=False):
     """ Compute appropriate accidental based on letter
         Args:
             pc = 3
             letter = E
+            allowDouble = keep double accidentals (used to detect awkward spellings)
         Returns: 'Eb'
+                 (or, if the letter would need a double accidental and allowDouble
+                 is False, the simplest spelling instead: pc 9 with letter B -> 'A')
     """
 
     offset = (pc - LETTER_TO_PC[letter] + 6) % 12 - 6
-    return letter + ACC_TEXT[offset]
+    if abs(offset) > 1 and not allowDouble:
+        letter, offset = simplestSpelling(pc, letter)
+    return letter + ("#" * offset if offset > 0 else "b" * -offset)
 
 
-def spellDegree(chord, degree):
+def spellDegree(chord, degree, allowDouble=False):
     """ Spell a chord degree correctly for given root
 
         Args:
@@ -265,7 +292,47 @@ def spellDegree(chord, degree):
 
     degree = effectiveDegree(chord, degree)
     letter = LETTERS[(LETTERS.index(chord.rootLetter) + DEGREE_LETTER_STEPS[degree]) % 7]
-    return spellPitch((chord.rootPc + semitonesFor(chord, degree)) % 12, letter)
+    return spellPitch((chord.rootPc + semitonesFor(chord, degree)) % 12, letter, allowDouble)
+
+
+def accidentalLoad(chord):
+    """ Score how awkward a chord's spelling is, as (double accidentals, total accidentals)
+
+        Looks at every chord tone plus the natural 9th (voicing templates borrow it)
+
+        Args: chord obj ('B#add9')
+        Returns: (3, 6) -- B# D## F## C## has three doubles and six accidentals in all
+    """
+
+    degrees = [d for d in DEGREE_ORDER if d in chord.degrees or d == "9"]
+    accidentals = [spellDegree(chord, d, allowDouble=True)[1:] for d in degrees]
+
+    return (sum(1 for a in accidentals if len(a) >= 2),
+            sum(len(a) for a in accidentals))
+
+
+def simplifyRoot(chord):
+    """ Respell the root enharmonically if the typed spelling forces double accidentals
+
+        Example: B#add9 would spell as B# D## F## C##, so it becomes Cadd9 (C E G D)
+        Chords that already spell cleanly are left exactly as typed (C#maj7 stays C#maj7)
+
+        Args: chord obj
+        Returns: chord obj, possibly with a different root letter/accidental
+    """
+
+    if accidentalLoad(chord)[0] == 0:
+        return chord
+
+    typed = (chord.rootLetter, chord.rootAccidental)
+    options = []
+    for letter in LETTERS:
+        offset = (chord.rootPc - LETTER_TO_PC[letter] + 6) % 12 - 6
+        if abs(offset) <= 1:    # same pitch, spelled with no more than one accidental
+            options.append(replace(chord, rootLetter=letter, rootAccidental=offset))
+
+    # Fewest double accidentals, then fewest accidentals, then closest to what was typed
+    return min(options, key=lambda c: accidentalLoad(c) + ((c.rootLetter, c.rootAccidental) != typed,))
 
 
 def chordToneNames(chord):

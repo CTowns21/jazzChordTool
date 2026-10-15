@@ -369,6 +369,7 @@ class Session:
     chords: list = field(default_factory=list)
     pins: list = field(default_factory=list)    # parallel to chords: a voicing label, or None
     styleName: str = DEFAULT_STYLE
+    showHelp: bool = False                      # show the full command guide on the next redraw
 
     def voicings(self):
         return chooseVoicings(self.chords, self.pins, STYLES[self.styleName])
@@ -378,11 +379,51 @@ class Session:
 # CLI
 # ---------------------------------------------------------------------------
 
-HELP_LINES = [
-    "Chords:    Dm7        (or  Dm7 @typeB  to pin a voicing as you add it)",
-    "Pinning:   pin 2 shell | unpin 2 | options 2",
-    "Other:     style shell | style rootless | undo | done",
+SCREEN_WIDTH = 59
+
+WELCOME = """Type a chord symbol and press Enter, one chord at a time.
+The tool picks a voicing for each chord automatically, choosing the
+smoothest path through the whole progression. If you want a specific
+voicing on a chord, you can pin it, and the other chords adjust around it."""
+
+# (what you type, what it does, an example of it)
+COMMAND_ROWS = [
+    ("<chord>",            "Add a chord to the end",             "Dm7    Bb7    F#m7b5"),
+    ("<chord> @<voicing>", "Add a chord with a voicing pinned",  "G7 @typeB"),
+    ("pin <#> <voicing>",  "Pin chord number # to a voicing",    "pin 2 shell"),
+    ("unpin <#>",          "Set chord # back to automatic",      "unpin 2"),
+    ("options <#>",        "List the voicings chord # can use",  "options 2"),
+    ("style <name>",       "Switch the automatic style",         "style shell"),
+    ("undo",               "Remove the last chord",              ""),
+    ("help",               "Show this guide",                    ""),
+    ("done",               "Finish",                             ""),
 ]
+
+SHORT_HELP = ("Type a chord to add it (for example: Dm7), or a command.\n"
+              "Commands: pin, unpin, options, style, undo, help, done")
+
+
+def helpText():
+    """ Build the full command guide as a block of text
+
+        Rows come from COMMAND_ROWS; voicing and style names come from the
+        data tables, so the guide stays correct if you add more of either
+    """
+
+    lines = ["COMMANDS", "-" * SCREEN_WIDTH,
+             f"{'You type':<21}{'What it does':<37}Example",
+             f"{'--------':<21}{'------------':<37}-------"]
+    for command, meaning, example in COMMAND_ROWS:
+        lines.append(f"{command:<21}{meaning:<37}{example}")
+
+    shortInversions = [name.split()[0] for name in INVERSION_NAMES]
+    lines += [
+        "",
+        "<...> means type your own value. # is a chord's row number in the table.",
+        f"Voicings you can pin: {', '.join(list(VOICING_TEMPLATES) + shortInversions)}",
+        f"Styles: {', '.join(STYLES)}",
+    ]
+    return "\n".join(lines)
 
 
 def clearScreen():
@@ -407,23 +448,35 @@ def formatVoicing(voicing):
 
 
 def displayState(session, message=""):
-    """ Redraw the current progression and chosen voicings
-        Each change can cause unpinned voicings to change after re-optimization
+    """ Redraw the screen: header, progression table, then how-to-use help
+
+        The full command guide appears when the progression is empty or after
+        'help'; otherwise a one-line reminder is shown. Each change can cause
+        unpinned voicings to change after re-optimization.
     """
 
     clearScreen()
-    print(f"Style: {session.styleName}\n")
+    print(f"{'JAZZ CHORD VOICER':<40}{'Style: ' + session.styleName:>{SCREEN_WIDTH - 40}}")
+    print("=" * SCREEN_WIDTH)
+    print()
 
     if session.chords:
         print(f"{'#':<4}{'Chord':<12}{'Bass':<6}{'Voicing':<16}Notes (low to high)")
-        print("-----------------------------------------------------------")
+        print("-" * SCREEN_WIDTH)
         for i, (chord, pin, voicing) in enumerate(zip(session.chords, session.pins, session.voicings()), 1):
             label = voicing.label + ("*" if pin else "")
             print(f"{i:<4}{chord.symbol:<12}{bassOf(chord):<6}{label:<16}{formatVoicing(voicing)}")
         print("\n[ ] = guide tone (3rd / 7th)     * = pinned by you")
+        print()
 
-    print()
-    print("\n".join(HELP_LINES))
+    if session.chords and not session.showHelp:
+        print(SHORT_HELP)
+    else:
+        if not session.chords:
+            print(WELCOME)
+            print()
+        print(helpText())
+
     if message:
         print(f"\n{message}")
     print()
@@ -493,9 +546,14 @@ def handleCommand(line, session):
         return False, ""
 
     command = words[0].lower()
+    session.showHelp = False
 
     if command == "done":
         return True, ""
+
+    if command == "help":
+        session.showHelp = True
+        return False, ""
 
     if command == "undo":
         if session.chords:
@@ -534,7 +592,7 @@ def main():
 
     while True:
         displayState(session, message)
-        done, message = handleCommand(input("> "), session)
+        done, message = handleCommand(input("Chord or command: "), session)
         if done:
             break
 
