@@ -2,7 +2,7 @@
 """
 Module Name: chordParser.py
 Description: Chord symbol parser, letter-correct spelling, and voicing
-             templates for jazzChordTool.
+             templates for jazzChordTool
 Author: Carson Towns
 """
 
@@ -10,19 +10,17 @@ import re
 from dataclasses import dataclass, replace
 
 LETTERS = "CDEFGAB"
-LETTER_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11} # Pitch-class mapping
-ACC_TO_INT = {"": 0, "#": 1, "b": -1} # Accidental text -> offset
-ACC_TEXT = {-2: "bb", -1: "b", 0: "", 1: "#", 2: "##"} # Reverse mapping for display/spelling
+LETTER_TO_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+ACC_TO_INT = {"": 0, "#": 1, "b": -1}
+ACC_TEXT = {-2: "bb", -1: "b", 0: "", 1: "#", 2: "##"}
 
-# Letters above the root for each degree
-# Example:
-#   root C + 3rd -> E (2 letter steps up: C -> D -> E)
-DEGREE_LETTER_STEPS = {"1": 0, "3": 2, "5": 4, "6": 5, "7": 6,
-                       "9": 1, "11": 3, "13": 5}
+DEGREE_LETTER_STEPS = {
+    "1": 0, "3": 2, "5": 4, "6": 5, "7": 6,
+    "9": 1, "11": 3, "13": 5
+}
 DEGREE_ORDER = ["1", "3", "5", "6", "7", "9", "11", "13"]
 DEFAULT_9TH = 2
 
-# Quality -> {degree: semitones above root}
 QUALITIES = {
     "major":   {"1": 0, "3": 4, "5": 7},
     "minor":   {"1": 0, "3": 3, "5": 7},
@@ -43,7 +41,6 @@ QUALITIES = {
     "min9":    {"1": 0, "3": 3, "5": 7, "7": 10, "9": 2},
 }
 
-# Handles multiple spellings of the same chord quality
 QUALITY_ALIASES = {
     "major":   ["", "maj", "major"],
     "minor":   ["m", "min", "minor", "-"],
@@ -64,88 +61,60 @@ QUALITY_ALIASES = {
     "min9":    ["m9", "min9", "-9"],
 }
 
-# Alterations/additions: token -> (degree, semitones)
 MODIFIERS = {
     "b9": ("9", 1), "#9": ("9", 3), "#11": ("11", 6), "b13": ("13", 8),
     "b5": ("5", 6), "#5": ("5", 8),
     "add9": ("9", 2), "add2": ("9", 2), "add11": ("11", 5),
 }
 
-# Voicing templates: degrees ordered bottom to top
 VOICING_TEMPLATES = {
     "triad": ["1", "3", "5"],
     "shell": ["1", "3", "7"],
-    "shellB": ["1", "7", "3"],   # alternate shell: root-7th-3rd, so guide tones can alternate
+    "shellB": ["1", "7", "3"],
     "typeA": ["3", "5", "7", "9"],
     "typeB": ["7", "9", "3", "5"],
 }
 
-# Dict comprehension for aliases
-# Longest-first so "o7" beats "o" and "+7" beats "+"
 ALIAS_LIST = sorted(
     ((alias, name) for name, aliases in QUALITY_ALIASES.items() for alias in aliases),
     key=lambda pair: -len(pair[0]),
 )
-MODIFIER_LIST = sorted(MODIFIERS.items(), key=lambda item: -len(item[0])) # Dict comprehension for modifiers
+MODIFIER_LIST = sorted(MODIFIERS.items(), key=lambda item: -len(item[0]))
 
-NOTE_RE = re.compile(r"^([A-G])([#b]?)$")       # Parses standalone note names like B#
-ROOT_RE = re.compile(r"^([A-G])([#b]?)(.*)$")   # Splits chord symbol into note letter,
-                                                #   accidental, remaining quality/modifier text
+NOTE_RE = re.compile(r"^([A-G])([#b]?)$")
+ROOT_RE = re.compile(r"^([A-G])([#b]?)(.*)$")
 
 
 @dataclass
 class Chord:
-    symbol: str             # Ebmaj7/Gb
-    rootLetter: str         # E
-    rootAccidental: int     # b
-    quality: str            # maj7
-    degrees: dict           # {"1": 0, "3": 4, "5": 7, "7": 11}
-    bassLetter: str = None  # G
-    bassAccidental: int = 0 # b
+    symbol: str
+    rootLetter: str
+    rootAccidental: int
+    quality: str
+    degrees: dict
+    bassLetter: str = None
+    bassAccidental: int = 0
 
     @property
-    def rootPc(self):       # 3 (Eb)
+    def rootPc(self):
         return (LETTER_TO_PC[self.rootLetter] + self.rootAccidental) % 12
 
+
 def normalizeSymbol(symbol):
-    """ Normalizes a given symbol to handle non-ASCII chars like ♭ 
-
-        Args: chord symbol ('E♭m7')
-        Returns: normalized chord symbol ('Ebm7')
-    """
-
     for old, new in [("♭", "b"), ("♯", "#"), ("°", "o"), ("Δ", "maj"),
                      ("(", ""), (")", ""), (" ", "")]:
         symbol = symbol.replace(old, new)
     return symbol
 
+
 def splitSlash(symbol):
-    """ Handles slashes for bass notes if applicable
-
-        Args: chord symbol ('Fadd9/A')
-        Returns:
-            head = 'Fadd9'
-            tail = 'A'
-            -OR-
-            symbol remains unchanged if no slash present
-
-    """
-
     head, sep, tail = symbol.rpartition("/")
     if sep and NOTE_RE.match(tail):
         return head, tail
     return symbol, None
 
+
 def parseModifiers(text):
-    """ Parses modifiers from modification text
-
-        Args: modifier text ('b9#11' (from 'Emb9#11/D'))
-        Returns:
-            found = [('9', 1), ('11', 6)]
-            -OR-
-            None (if any leftover text is unsupported)
-    """
-
     found = []
     while text:
         for token, alteration in MODIFIER_LIST:
@@ -157,19 +126,8 @@ def parseModifiers(text):
             return None
     return found
 
+
 def parseQuality(text):
-    """ Parses specific quality name and degrees from quality text
-
-        Args: quality text ('m7add9' (if chord were 'Ebm7add9/A#'))
-        Returns:
-            name = 'min'
-            degrees = {'1': 0, '3': 3, '5': 7, '7': 10, '9': 2}
-        Strategy:
-            1. Try each known quality alias, longest-first
-            2. If alias matches the prefix, parse the remainder as modifiers
-            3. If modifiers parse cleanly, clone base quality degrees and apply them
-    """
-
     for alias, name in ALIAS_LIST:
         if text.startswith(alias):
             modifiers = parseModifiers(text[len(alias):])
@@ -179,79 +137,44 @@ def parseQuality(text):
                 return name, degrees
     raise ValueError(f"Unsupported chord quality: '{text}'")
 
-def parseChordSymbol(symbol):
-    """ Primary chord parser, makes use of all other parsers up to this point
-    
-        Args: chord symbol ('Emb9#11/D')
-        Returns: structured 'chord' object with attributes populated
-    """
 
-    # Normalize symbol ('E♭m7' -> 'Ebm7')
+def parseChordSymbol(symbol):
     cleaned = normalizeSymbol(symbol.strip())
     if not cleaned:
         raise ValueError("Chord symbol cannot be empty")
 
-    # Pull off slash bass note if applicable
     head, bassText = splitSlash(cleaned)
 
-    # Parse root note and remaining quality text
     match = ROOT_RE.match(head)
     if not match:
         raise ValueError(f"Invalid root note in '{symbol}'")
     letter, accidental, qualityText = match.groups()
 
-    # Parse quality/modifier part into normalized quality + degrees dict
     quality, degrees = parseQuality(qualityText)
-
-    # Assemble initial chord obj
     chord = Chord(symbol, letter, ACC_TO_INT[accidental], quality, degrees)
 
-    # Assign bass note as chord obj property if applicable
     if bassText:
         bassLetter, bassAccidental = NOTE_RE.match(bassText).groups()
         chord.bassLetter = bassLetter
         chord.bassAccidental = ACC_TO_INT[bassAccidental]
-    return simplifyRoot(chord)    # avoids double accidentals like B# D## F##
+
+    return simplifyRoot(chord)
+
 
 def effectiveDegree(chord, degree):
-    """ For 6 chords, treat the 6th like the "seventh-ish" guide tone if no 7 is present
-    
-        Args:
-            chord = chord obj
-            degree = degree value ('7')
-        Returns: degree = "6" if applicable
-        
-    """
-
     if degree == "7" and "7" not in chord.degrees and "6" in chord.degrees:
         return "6"
     return degree
 
+
 def semitonesFor(chord, degree):
-    """ Semitones above root, or None if the chord can't supply it.
-        The 9th defaults to natural unless the symbol altered it
-
-        Args:
-            chord = chord obj
-            degree = degree value
-        Returns: semitones value (9th is special case)
-    """
-
     degree = effectiveDegree(chord, degree)
     if degree in chord.degrees:
         return chord.degrees[degree]
     return DEFAULT_9TH if degree == "9" else None
 
+
 def simplestSpelling(pc, nominalLetter):
-    """ Respell a pitch with at most one accidental, staying as close as possible
-        to the letter it was nominally supposed to use
-
-        Args:
-            pc = 9
-            nominalLetter = B   (the spelling would have been B##)
-        Returns: ('A', 0)
-    """
-
     nominal = LETTERS.index(nominalLetter)
     candidates = []
     for letter in LETTERS:
@@ -265,16 +188,6 @@ def simplestSpelling(pc, nominalLetter):
 
 
 def spellPitch(pc, letter, allowDouble=False):
-    """ Compute appropriate accidental based on letter
-        Args:
-            pc = 3
-            letter = E
-            allowDouble = keep double accidentals (used to detect awkward spellings)
-        Returns: 'Eb'
-                 (or, if the letter would need a double accidental and allowDouble
-                 is False, the simplest spelling instead: pc 9 with letter B -> 'A')
-    """
-
     offset = (pc - LETTER_TO_PC[letter] + 6) % 12 - 6
     if abs(offset) > 1 and not allowDouble:
         letter, offset = simplestSpelling(pc, letter)
@@ -282,45 +195,21 @@ def spellPitch(pc, letter, allowDouble=False):
 
 
 def spellDegree(chord, degree, allowDouble=False):
-    """ Spell a chord degree correctly for given root
-
-        Args:
-            chord = C
-            degree = 3
-        Returns: 'E' (as opposed to 'Fb' or 'D##')
-    """
-
     degree = effectiveDegree(chord, degree)
     letter = LETTERS[(LETTERS.index(chord.rootLetter) + DEGREE_LETTER_STEPS[degree]) % 7]
     return spellPitch((chord.rootPc + semitonesFor(chord, degree)) % 12, letter, allowDouble)
 
 
 def accidentalLoad(chord):
-    """ Score how awkward a chord's spelling is, as (double accidentals, total accidentals)
-
-        Looks at every chord tone plus the natural 9th (voicing templates borrow it)
-
-        Args: chord obj ('B#add9')
-        Returns: (3, 6) -- B# D## F## C## has three doubles and six accidentals in all
-    """
-
     degrees = [d for d in DEGREE_ORDER if d in chord.degrees or d == "9"]
     accidentals = [spellDegree(chord, d, allowDouble=True)[1:] for d in degrees]
-
-    return (sum(1 for a in accidentals if len(a) >= 2),
-            sum(len(a) for a in accidentals))
+    return (
+        sum(1 for a in accidentals if len(a) >= 2),
+        sum(len(a) for a in accidentals),
+    )
 
 
 def simplifyRoot(chord):
-    """ Respell the root enharmonically if the typed spelling forces double accidentals
-
-        Example: B#add9 would spell as B# D## F## C##, so it becomes Cadd9 (C E G D)
-        Chords that already spell cleanly are left exactly as typed (C#maj7 stays C#maj7)
-
-        Args: chord obj
-        Returns: chord obj, possibly with a different root letter/accidental
-    """
-
     if accidentalLoad(chord)[0] == 0:
         return chord
 
@@ -328,33 +217,20 @@ def simplifyRoot(chord):
     options = []
     for letter in LETTERS:
         offset = (chord.rootPc - LETTER_TO_PC[letter] + 6) % 12 - 6
-        if abs(offset) <= 1:    # same pitch, spelled with no more than one accidental
+        if abs(offset) <= 1:
             options.append(replace(chord, rootLetter=letter, rootAccidental=offset))
 
-    # Fewest double accidentals, then fewest accidentals, then closest to what was typed
-    return min(options, key=lambda c: accidentalLoad(c) + ((c.rootLetter, c.rootAccidental) != typed,))
+    return min(
+        options,
+        key=lambda c: accidentalLoad(c) + ((c.rootLetter, c.rootAccidental) != typed,),
+    )
 
 
 def chordToneNames(chord):
-    """ Return all explicitly present chord tones as correctly spelled note names
-
-        Args: chord obj ('Em7')
-        Returns: '['E', 'G', 'B', 'D']'
-    """
-
     return [spellDegree(chord, d) for d in DEGREE_ORDER if d in chord.degrees]
 
 
 def bassName(chord):
-    """ Return bass note of given chord
-
-        Args: chord obj ('Eb7/D')
-        Returns:
-            'D'
-            -OR-
-            'None' if none present
-    """
-
     if chord.bassLetter is None:
         return None
     pc = (LETTER_TO_PC[chord.bassLetter] + chord.bassAccidental) % 12
@@ -362,20 +238,11 @@ def bassName(chord):
 
 
 def availableVoicings(chord):
-    """ Return named voicing templates a given chord can support
-
-        Args: chord obj ('Ebm7add9/D')
-        Returns:
-            {
-                'triad': [('Eb', 3), ('Gb', 6), ('Bb', 10)],
-                'shell': [('Eb', 3), ('Gb', 6), ('Db', 1)],
-                'typeA': [('Gb', 6), ('Bb', 10), ('Db', 1), ('F', 5)],
-                'typeB': [('Db', 1), ('F', 5), ('Gb', 6), ('Bb', 10)]
-            }
-    """
     return {
-        name: [(spellDegree(chord, d), (chord.rootPc + semitonesFor(chord, d)) % 12)
-               for d in degrees]
+        name: [
+            (spellDegree(chord, d), (chord.rootPc + semitonesFor(chord, d)) % 12)
+            for d in degrees
+        ]
         for name, degrees in VOICING_TEMPLATES.items()
         if all(semitonesFor(chord, d) is not None for d in degrees)
     }
