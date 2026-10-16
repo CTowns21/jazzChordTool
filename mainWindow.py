@@ -11,6 +11,8 @@ import time
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QFormLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -32,7 +34,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Jazz Chord Voicer")
-        self.resize(980, 520)
+        self.resize(1120, 560)
 
         self.session = Session()
         self.revision = 0
@@ -48,22 +50,16 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
 
-        layout = QVBoxLayout(central)
+        outer = QVBoxLayout(central)
 
         top = QHBoxLayout()
-        layout.addLayout(top)
+        outer.addLayout(top)
 
         top.addWidget(QLabel("Chord:"))
 
         self.chord_input = QLineEdit()
         self.chord_input.setPlaceholderText("e.g. Dm7 or Ebmaj7/G")
-        top.addWidget(self.chord_input)
-
-        top.addWidget(QLabel("Pin:"))
-
-        self.pin_input = QLineEdit()
-        self.pin_input.setPlaceholderText("optional, e.g. typeB")
-        top.addWidget(self.pin_input)
+        top.addWidget(self.chord_input, 2)
 
         self.add_button = QPushButton("Add")
         top.addWidget(self.add_button)
@@ -80,46 +76,194 @@ class MainWindow(QMainWindow):
         self.delete_button = QPushButton("Delete Selected")
         top.addWidget(self.delete_button)
 
-        self.pin_selected_button = QPushButton("Pin Selected")
-        top.addWidget(self.pin_selected_button)
-
-        self.unpin_selected_button = QPushButton("Unpin Selected")
-        top.addWidget(self.unpin_selected_button)
+        body = QHBoxLayout()
+        outer.addLayout(body, 1)
 
         self.table = QTableWidget(0, 6)
         self.table.setHorizontalHeaderLabels(["#", "Chord", "Bass", "Voicing", "Notes", "Pinned"])
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.horizontalHeader().setStretchLastSection(True)
-        layout.addWidget(self.table)
+        body.addWidget(self.table, 3)
+
+        self.selection_group = QGroupBox("Selected Chord")
+        body.addWidget(self.selection_group, 2)
+
+        side_layout = QVBoxLayout(self.selection_group)
+
+        form = QFormLayout()
+        side_layout.addLayout(form)
+
+        self.selected_index_label = QLabel("—")
+        self.selected_symbol_label = QLabel("—")
+        self.selected_bass_label = QLabel("—")
+        self.selected_current_voicing_label = QLabel("—")
+        self.selected_pin_status_label = QLabel("—")
+
+        form.addRow("Row:", self.selected_index_label)
+        form.addRow("Chord:", self.selected_symbol_label)
+        form.addRow("Bass:", self.selected_bass_label)
+        form.addRow("Current voicing:", self.selected_current_voicing_label)
+        form.addRow("Pinned:", self.selected_pin_status_label)
+
+        side_layout.addWidget(QLabel("Valid voicings for this chord:"))
+
+        self.valid_voicing_combo = QComboBox()
+        side_layout.addWidget(self.valid_voicing_combo)
+
+        self.pin_selected_button = QPushButton("Pin to Selected Voicing")
+        side_layout.addWidget(self.pin_selected_button)
+
+        self.unpin_selected_button = QPushButton("Unpin")
+        side_layout.addWidget(self.unpin_selected_button)
+
+        side_layout.addSpacing(12)
+
+        side_layout.addWidget(QLabel("Quick add with optional pin:"))
+
+        self.quick_pin_combo = QComboBox()
+        self.quick_pin_combo.addItem("(no pin)")
+        side_layout.addWidget(self.quick_pin_combo)
+
+        self.add_with_pin_button = QPushButton("Add Chord With Selected Pin")
+        side_layout.addWidget(self.add_with_pin_button)
+
+        side_layout.addStretch(1)
 
         self.status = QStatusBar()
         self.setStatusBar(self.status)
 
+        self._clear_selection_panel()
+
     def _wire_events(self):
         self.add_button.clicked.connect(self.on_add)
+        self.add_with_pin_button.clicked.connect(self.on_add_with_selected_pin)
         self.undo_button.clicked.connect(self.on_undo)
         self.delete_button.clicked.connect(self.on_delete_selected)
-        self.pin_selected_button.clicked.connect(self.on_pin_selected)
+        self.pin_selected_button.clicked.connect(self.on_pin_selected_from_combo)
         self.unpin_selected_button.clicked.connect(self.on_unpin_selected)
         self.style_combo.currentTextChanged.connect(self.on_style_changed)
+
         self.chord_input.returnPressed.connect(self.on_add)
-        self.pin_input.returnPressed.connect(self.on_add)
+
+        self.table.itemSelectionChanged.connect(self.on_table_selection_changed)
+        self.table.itemDoubleClicked.connect(self.on_table_double_clicked)
+
+        self.chord_input.textChanged.connect(self.on_chord_input_changed)
+
+    def _clear_selection_panel(self):
+        self.selected_index_label.setText("—")
+        self.selected_symbol_label.setText("—")
+        self.selected_bass_label.setText("—")
+        self.selected_current_voicing_label.setText("—")
+        self.selected_pin_status_label.setText("—")
+
+        self.valid_voicing_combo.clear()
+        self.valid_voicing_combo.addItem("(select a chord row)")
+        self.valid_voicing_combo.setEnabled(False)
+
+        self.pin_selected_button.setEnabled(False)
+        self.unpin_selected_button.setEnabled(False)
+
+    def _set_selection_panel_from_row(self, row_index):
+        if not (0 <= row_index < len(self.session.chords)):
+            self._clear_selection_panel()
+            return
+
+        chord = self.session.chords[row_index]
+        pinned = self.session.pins[row_index]
+        rows = self.session.render_rows()
+        row = rows[row_index]
+
+        self.selected_index_label.setText(str(row["index"]))
+        self.selected_symbol_label.setText(row["symbol"])
+        self.selected_bass_label.setText(row["bass"])
+        self.selected_current_voicing_label.setText(row["voicing"])
+        self.selected_pin_status_label.setText(pinned if pinned else "Automatic")
+
+        labels = self.session.available_labels_for(row_index)
+
+        self.valid_voicing_combo.clear()
+        for label in labels:
+            self.valid_voicing_combo.addItem(label)
+
+        self.valid_voicing_combo.setEnabled(bool(labels))
+        self.pin_selected_button.setEnabled(bool(labels))
+        self.unpin_selected_button.setEnabled(True)
+
+        if pinned and pinned in labels:
+            self.valid_voicing_combo.setCurrentText(pinned)
+
+    def on_table_selection_changed(self):
+        row = self.table.currentRow()
+        if row < 0:
+            self._clear_selection_panel()
+            return
+        self._set_selection_panel_from_row(row)
+
+    def on_table_double_clicked(self, item):
+        row = item.row()
+        if not (0 <= row < len(self.session.chords)):
+            return
+
+        chord = self.session.chords[row]
+        self.chord_input.setText(chord.symbol)
+        self.chord_input.setFocus()
+
+    def on_chord_input_changed(self):
+        text = self.chord_input.text().strip()
+
+        self.quick_pin_combo.clear()
+        self.quick_pin_combo.addItem("(no pin)")
+
+        if not text:
+            return
+
+        try:
+            from chord_parser import parseChordSymbol
+            chord = parseChordSymbol(text)
+            from voicing_engine import availableLabels
+            labels = availableLabels(chord)
+            for label in labels:
+                self.quick_pin_combo.addItem(label)
+        except Exception:
+            pass
 
     def on_add(self):
         symbol = self.chord_input.text().strip()
-        pin = self.pin_input.text().strip() or None
         if not symbol:
             return
 
         try:
-            self.session.add_chord(symbol, pin)
+            self.session.add_chord(symbol, None)
         except Exception as e:
             QMessageBox.warning(self, "Add chord", str(e))
             return
 
         self.chord_input.clear()
-        self.pin_input.clear()
+        self.quick_pin_combo.clear()
+        self.quick_pin_combo.addItem("(no pin)")
+        self.request_recompute()
+
+    def on_add_with_selected_pin(self):
+        symbol = self.chord_input.text().strip()
+        if not symbol:
+            return
+
+        pin_text = self.quick_pin_combo.currentText()
+        if pin_text == "(no pin)":
+            pin_text = None
+
+        try:
+            self.session.add_chord(symbol, pin_text)
+        except Exception as e:
+            QMessageBox.warning(self, "Add chord", str(e))
+            return
+
+        self.chord_input.clear()
+        self.quick_pin_combo.clear()
+        self.quick_pin_combo.addItem("(no pin)")
         self.request_recompute()
 
     def on_undo(self):
@@ -139,14 +283,13 @@ class MainWindow(QMainWindow):
 
         self.request_recompute()
 
-    def on_pin_selected(self):
+    def on_pin_selected_from_combo(self):
         row = self.table.currentRow()
         if row < 0:
             return
 
-        label = self.pin_input.text().strip()
+        label = self.valid_voicing_combo.currentText().strip()
         if not label:
-            QMessageBox.information(self, "Pin chord", "Enter a voicing label in the Pin field.")
             return
 
         try:
@@ -212,7 +355,14 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"Error: {error}", 5000)
             return
 
+        selected_row = self.table.currentRow()
         self.populate_table(rows)
+
+        if 0 <= selected_row < len(rows):
+            self.table.selectRow(selected_row)
+            self._set_selection_panel_from_row(selected_row)
+        else:
+            self._clear_selection_panel()
 
         if self.last_compute_started is not None:
             elapsed_ms = (time.perf_counter() - self.last_compute_started) * 1000
