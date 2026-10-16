@@ -90,8 +90,9 @@ class Session:
             raise IndexError("Chord index out of range")
         return availableLabels(self.chords[index])
 
-    def renderRows(self):
-        voicings = self.voicings()
+    def renderRows(self, voicings=None):
+        if voicings = None:
+            voicings = self.voicings()
         rows = []
 
         for i, (chord, pin, voicing) in enumerate(zip(self.chords, self.pins, voicings), start=1):
