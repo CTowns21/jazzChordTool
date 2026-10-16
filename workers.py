@@ -21,7 +21,7 @@ class RecomputeWorker(QObject):
     def run(self):
         try:
             voicings = self.session_copy.voicings()
-            rows = self.session_copy.render_rows(voicings)
+            rows = self.session_copy.renderRows(voicings)
             self.finished.emit(self.revision, rows, voicings, "")
         except Exception as e:
             self.finished.emit(self.revision, [], [], str(e))

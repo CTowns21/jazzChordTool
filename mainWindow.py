@@ -347,9 +347,10 @@ class MainWindow(QMainWindow):
         session_copy = copy.deepcopy(self.session)
         self.last_compute_started = time.perf_counter()
 
-        if self.active_thread is not None and self.active_thread.isRunning():
+        if self.active_thread is not None:
             self.active_thread.quit()
             self.active_thread.wait()
+            self.active_thread = None
 
         self.active_thread = QThread()
         self.active_worker = RecomputeWorker(revision, session_copy)
@@ -359,10 +360,14 @@ class MainWindow(QMainWindow):
         self.active_worker.finished.connect(self.on_recompute_finished)
         self.active_worker.finished.connect(self.active_thread.quit)
         self.active_worker.finished.connect(self.active_worker.deleteLater)
-        self.active_thread.finished.connect(self.active_thread.deleteLater)
+        self.active_thread.finished.connect(self._clear_active_worker)
 
         self.status.showMessage("Recomputing...")
         self.active_thread.start()
+
+    def _clear_active_worker(self):
+        self.active_thread = None
+        self.active_worker = None
 
     def on_recompute_finished(self, revision, rows, voicings, error):
         if revision != self.revision:
