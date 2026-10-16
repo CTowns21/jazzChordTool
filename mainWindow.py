@@ -254,7 +254,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.session.add_chord(symbol, None)
+            self.session.addChord(symbol, None)
         except Exception as e:
             QMessageBox.warning(self, "Add chord", str(e))
             return
@@ -274,7 +274,7 @@ class MainWindow(QMainWindow):
             pin_text = None
 
         try:
-            self.session.add_chord(symbol, pin_text)
+            self.session.addChord(symbol, pin_text)
         except Exception as e:
             QMessageBox.warning(self, "Add chord", str(e))
             return

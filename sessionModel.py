@@ -91,7 +91,7 @@ class Session:
         return availableLabels(self.chords[index])
 
     def renderRows(self, voicings=None):
-        if voicings = None:
+        if voicings == None:
             voicings = self.voicings()
         rows = []
 
