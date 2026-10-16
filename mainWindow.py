@@ -44,6 +44,7 @@ class MainWindow(QMainWindow):
         self.active_thread = None
         self.active_worker = None
         self.last_compute_started = None
+        self.pending_select_row = None
 
         self.current_rows = []
         self.current_voicings = []
@@ -363,7 +364,7 @@ class MainWindow(QMainWindow):
         self.status.showMessage("Recomputing...")
         self.active_thread.start()
 
-    def on_recompute_finished(self, revision, rows, error):
+    def on_recompute_finished(self, revision, rows, voicings, error):
         if revision != self.revision:
             return
 
@@ -371,21 +372,17 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"Error: {error}", 5000)
             return
 
-        self.current_rows = rows
-
-        try:
-            self.current_voicings = self.session.voicings()
-        except Exception:
-            self.current_voicings = []
+        self.current_rows = rows or []
+        self.current_voicings = voicings or []
 
         previous_row = self.table.currentRow()
-        self.populate_table(rows)
+        self.populate_table(self.current_rows)
 
         row_to_select = self.pending_select_row
         if row_to_select is None:
             row_to_select = previous_row
 
-        if row_to_select is not None and 0 <= row_to_select < len(rows):
+        if row_to_select is not None and 0 <= row_to_select < len(self.current_rows):
             self.table.selectRow(row_to_select)
             self._set_selection_panel_from_row(row_to_select)
         else:
