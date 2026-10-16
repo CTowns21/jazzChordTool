@@ -26,10 +26,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from chord_parser import parseChordSymbol
-from piano_widget import PianoWidget
-from session_model import Session
-from voicing_engine import STYLES, availableLabels
+from chordParser import parseChordSymbol
+from pianoWidget import PianoWidget
+from sessionModel import Session
+from voicingEngine import STYLES, availableLabels
 from workers import RecomputeWorker
 
 
