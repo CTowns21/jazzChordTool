@@ -9,7 +9,8 @@ from PySide6.QtCore import QObject, Signal, Slot
 
 
 class RecomputeWorker(QObject):
-    finished = Signal(int, list, str)
+    finished = Signal(int, object, object, str)
+    # revision, rows, voicings, error
 
     def __init__(self, revision, session_copy):
         super().__init__()
@@ -19,7 +20,8 @@ class RecomputeWorker(QObject):
     @Slot()
     def run(self):
         try:
+            voicings = self.session_copy.voicings()
             rows = self.session_copy.render_rows()
-            self.finished.emit(self.revision, rows, "")
+            self.finished.emit(self.revision, rows, voicings, "")
         except Exception as e:
-            self.finished.emit(self.revision, [], str(e))
+            self.finished.emit(self.revision, [], [], str(e))
