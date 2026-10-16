@@ -8,7 +8,7 @@ Description: A CLI tool that voices a jazz chord progression. Voicings come from
              chord re-optimizes around it.
 Author: Carson Towns
 
-Requires chordParser.py in the same folder.
+Requires chordParser.py in the same directory.
 """
 
 import os
