@@ -8,7 +8,7 @@ Author: Carson Towns
 from dataclasses import dataclass
 from itertools import combinations
 
-from chord_parser import (
+from chordParser import (
     DEGREE_ORDER,
     VOICING_TEMPLATES,
     effectiveDegree,
