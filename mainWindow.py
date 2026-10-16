@@ -26,21 +26,27 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from sessionModel import Session
-from voicingEngine import STYLES
+from chord_parser import parseChordSymbol
+from piano_widget import PianoWidget
+from session_model import Session
+from voicing_engine import STYLES, availableLabels
+from workers import RecomputeWorker
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Jazz Chord Voicer")
-        self.resize(1120, 560)
+        self.resize(1180, 650)
 
         self.session = Session()
         self.revision = 0
         self.active_thread = None
         self.active_worker = None
         self.last_compute_started = None
+
+        self.current_rows = []
+        self.current_voicings = []
 
         self._build_ui()
         self._wire_events()
@@ -129,6 +135,12 @@ class MainWindow(QMainWindow):
         self.add_with_pin_button = QPushButton("Add Chord With Selected Pin")
         side_layout.addWidget(self.add_with_pin_button)
 
+        side_layout.addSpacing(16)
+
+        side_layout.addWidget(QLabel("Voicing on keyboard:"))
+        self.piano_widget = PianoWidget()
+        side_layout.addWidget(self.piano_widget)
+
         side_layout.addStretch(1)
 
         self.status = QStatusBar()
@@ -166,6 +178,8 @@ class MainWindow(QMainWindow):
         self.pin_selected_button.setEnabled(False)
         self.unpin_selected_button.setEnabled(False)
 
+        self.piano_widget.clear()
+
     def _set_selection_panel_from_row(self, row_index):
         if not (0 <= row_index < len(self.session.chords)):
             self._clear_selection_panel()
@@ -173,13 +187,13 @@ class MainWindow(QMainWindow):
 
         chord = self.session.chords[row_index]
         pinned = self.session.pins[row_index]
-        rows = self.session.render_rows()
-        row = rows[row_index]
+        row = self.current_rows[row_index] if row_index < len(self.current_rows) else None
+        voicing = self.current_voicings[row_index] if row_index < len(self.current_voicings) else None
 
-        self.selected_index_label.setText(str(row["index"]))
-        self.selected_symbol_label.setText(row["symbol"])
-        self.selected_bass_label.setText(row["bass"])
-        self.selected_current_voicing_label.setText(row["voicing"])
+        self.selected_index_label.setText(str(row["index"]) if row else str(row_index + 1))
+        self.selected_symbol_label.setText(row["symbol"] if row else chord.symbol)
+        self.selected_bass_label.setText(row["bass"] if row else "—")
+        self.selected_current_voicing_label.setText(row["voicing"] if row else "—")
         self.selected_pin_status_label.setText(pinned if pinned else "Automatic")
 
         labels = self.session.available_labels_for(row_index)
@@ -194,6 +208,11 @@ class MainWindow(QMainWindow):
 
         if pinned and pinned in labels:
             self.valid_voicing_combo.setCurrentText(pinned)
+
+        if voicing is not None:
+            self.piano_widget.set_voicing(voicing)
+        else:
+            self.piano_widget.clear()
 
     def on_table_selection_changed(self):
         row = self.table.currentRow()
@@ -221,9 +240,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            from chord_parser import parseChordSymbol
             chord = parseChordSymbol(text)
-            from voicing_engine import availableLabels
             labels = availableLabels(chord)
             for label in labels:
                 self.quick_pin_combo.addItem(label)
@@ -244,7 +261,7 @@ class MainWindow(QMainWindow):
         self.chord_input.clear()
         self.quick_pin_combo.clear()
         self.quick_pin_combo.addItem("(no pin)")
-        self.request_recompute()
+        self.request_recompute(select_row=len(self.session.chords) - 1)
 
     def on_add_with_selected_pin(self):
         symbol = self.chord_input.text().strip()
@@ -264,7 +281,7 @@ class MainWindow(QMainWindow):
         self.chord_input.clear()
         self.quick_pin_combo.clear()
         self.quick_pin_combo.addItem("(no pin)")
-        self.request_recompute()
+        self.request_recompute(select_row=len(self.session.chords) - 1)
 
     def on_undo(self):
         self.session.remove_last()
@@ -298,7 +315,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Pin chord", str(e))
             return
 
-        self.request_recompute()
+        self.request_recompute(select_row=row)
 
     def on_unpin_selected(self):
         row = self.table.currentRow()
@@ -311,7 +328,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Unpin chord", str(e))
             return
 
-        self.request_recompute()
+        self.request_recompute(select_row=row)
 
     def on_style_changed(self, style_name):
         try:
@@ -322,9 +339,8 @@ class MainWindow(QMainWindow):
 
         self.request_recompute()
 
-    def request_recompute(self):
-        from workers import RecomputeWorker
-
+    def request_recompute(self, select_row=None):
+        self.pending_select_row = select_row
         self.revision += 1
         revision = self.revision
         session_copy = copy.deepcopy(self.session)
@@ -355,12 +371,23 @@ class MainWindow(QMainWindow):
             self.status.showMessage(f"Error: {error}", 5000)
             return
 
-        selected_row = self.table.currentRow()
+        self.current_rows = rows
+
+        try:
+            self.current_voicings = self.session.voicings()
+        except Exception:
+            self.current_voicings = []
+
+        previous_row = self.table.currentRow()
         self.populate_table(rows)
 
-        if 0 <= selected_row < len(rows):
-            self.table.selectRow(selected_row)
-            self._set_selection_panel_from_row(selected_row)
+        row_to_select = self.pending_select_row
+        if row_to_select is None:
+            row_to_select = previous_row
+
+        if row_to_select is not None and 0 <= row_to_select < len(rows):
+            self.table.selectRow(row_to_select)
+            self._set_selection_panel_from_row(row_to_select)
         else:
             self._clear_selection_panel()
 
