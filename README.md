@@ -28,8 +28,11 @@ beside the application. Use **Export folder...** to choose a different default
 folder. The selected folder is remembered on this computer; Save dialogs can
 still navigate to other locations.
 
-The keyboard view automatically adjusts to center the selected voicing and
-includes every note, even when the voicing falls below the default range.
+The keyboard and grand-staff views show the selected voicing together. The
+staff also labels each note with its chord role and interval from the root.
+Both views follow chord previews and progression playback. The keyboard
+automatically adjusts to center the selected voicing and includes every note,
+even when the voicing falls below the default range.
 Use **Show previous chord** to toggle the preceding chord's gray notes on the
 keyboard when comparing voicings.
 

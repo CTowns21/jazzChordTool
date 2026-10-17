@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 from audioPlayer import TonePlayer
 from pianoWidget import PianoWidget
 from sessionModel import Session
+from staffWidget import StaffWidget
 from voicingEngine import STYLES, pinnedVoicings, transitionCost, voicingCost
 from workers import RecomputeWorker
 
@@ -177,7 +178,7 @@ class MainWindow(QMainWindow):
         voicing_actions.addWidget(self.unpin_selected_button)
         controls_layout.addLayout(voicing_actions)
 
-        piano_group = QGroupBox("Voicing on keyboard")
+        piano_group = QGroupBox("Voicing: Keyboard and Staff")
         piano_layout = QVBoxLayout(piano_group)
 
         legend_layout = QHBoxLayout()
@@ -207,7 +208,11 @@ class MainWindow(QMainWindow):
 
         self.piano_widget = PianoWidget()
         self.piano_widget.setMinimumHeight(210)
-        piano_layout.addWidget(self.piano_widget)
+        self.staff_widget = StaffWidget()
+        voicing_views = QHBoxLayout()
+        voicing_views.addWidget(self.piano_widget, 1)
+        voicing_views.addWidget(self.staff_widget, 1)
+        piano_layout.addLayout(voicing_views, 1)
 
         playback_layout = QHBoxLayout()
         self.play_preview_button = QPushButton("Play Preview")
@@ -336,7 +341,7 @@ class MainWindow(QMainWindow):
 
     def _clear_selection_panel(self):
         self.valid_voicing_list.clear()
-        self.valid_voicing_list.addItem("(Add a chord to get started)")
+        self.valid_voicing_list.addItem("Add a chord to get started")
         self.valid_voicing_list.setEnabled(False)
 
         self.pin_selected_button.setEnabled(False)
@@ -344,6 +349,7 @@ class MainWindow(QMainWindow):
         self.play_preview_button.setEnabled(False)
 
         self.piano_widget.clear()
+        self.staff_widget.clear()
 
     def _set_selection_panel_from_row(self, row_index):
         if not (0 <= row_index < len(self.session.chords)):
@@ -391,6 +397,7 @@ class MainWindow(QMainWindow):
         row_index = self.table.currentRow()
         if not (0 <= row_index < len(self.session.chords)):
             self.piano_widget.clear()
+            self.staff_widget.clear()
             return
 
         voicings = pinnedVoicings(
@@ -400,6 +407,7 @@ class MainWindow(QMainWindow):
         )
         if not voicings:
             self.piano_widget.clear()
+            self.staff_widget.clear()
             self.status.showMessage(
                 f"Can't preview voicing: {label}", 5000
             )
@@ -426,7 +434,15 @@ class MainWindow(QMainWindow):
             if self.show_previous_chord_checkbox.isChecked()
             else None
         )
-        self.piano_widget.set_voicing(preview_voicing, previous_overlay)
+        self._set_voicing_views(
+            preview_voicing,
+            self.session.chords[row_index],
+            previous_overlay,
+        )
+
+    def _set_voicing_views(self, voicing, chord, previous_voicing=None):
+        self.piano_widget.set_voicing(voicing, previous_voicing)
+        self.staff_widget.set_voicing(voicing, chord)
 
     def on_voicing_item_changed(self, current, previous):
         del previous
@@ -607,8 +623,9 @@ class MainWindow(QMainWindow):
             if self.show_previous_chord_checkbox.isChecked()
             else None
         )
-        self.piano_widget.set_voicing(
+        self._set_voicing_views(
             self.current_voicings[row],
+            self.session.chords[row],
             previous_overlay,
         )
         self.status.showMessage(
