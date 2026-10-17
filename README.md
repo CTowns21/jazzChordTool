@@ -19,7 +19,7 @@ containing `libfluidsynth-3.dll` if FluidSynth is not found automatically.
 Use **Save...** to export the current progression as a JSON file, including
 its voicing style and any pinned voicings. The **Load** dropdown lists saved
 progressions in the current export folder; use **Refresh** after adding files
-outside the app, or **Browse...** to load a file from another location.
+outside the app.
 Loading validates the whole file before replacing the current progression and
 asks for confirmation when chords are already in the session.
 

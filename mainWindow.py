@@ -95,9 +95,6 @@ class MainWindow(QMainWindow):
         self.style_combo.addItems(STYLES.keys())
         top.addWidget(self.style_combo)
 
-        self.delete_button = QPushButton("Delete Selected")
-        top.addWidget(self.delete_button)
-
         top.addWidget(QLabel("Load:"))
         self.progression_combo = QComboBox()
         self.progression_combo.setMinimumWidth(100)
@@ -106,8 +103,8 @@ class MainWindow(QMainWindow):
         )
         top.addWidget(self.progression_combo)
 
-        self.browse_progression_button = QPushButton("Browse...")
-        top.addWidget(self.browse_progression_button)
+        self.export_button = QPushButton("Save...")
+        top.addWidget(self.export_button)
 
         self.refresh_progressions_button = QPushButton("Refresh")
         self.refresh_progressions_button.setToolTip(
@@ -115,10 +112,7 @@ class MainWindow(QMainWindow):
         )
         top.addWidget(self.refresh_progressions_button)
 
-        self.export_button = QPushButton("Save...")
-        top.addWidget(self.export_button)
-
-        self.export_folder_button = QPushButton("Choose export folder...")
+        self.export_folder_button = QPushButton("Choose music folder...")
         self.export_folder_button.setToolTip(
             f"Chord progressions will save to {self._export_directory()}"
         )
@@ -131,9 +125,9 @@ class MainWindow(QMainWindow):
         top_row = QHBoxLayout()
         body.addLayout(top_row, 3)
 
-        self.table = QTableWidget(0, 6)
+        self.table = QTableWidget(0, 7)
         self.table.setHorizontalHeaderLabels(
-            ["#", "Chord", "Bass", "Voicing", "Notes", "Pinned"]
+            ["#", "Chord", "Bass", "Voicing", "Notes", "Pinned", ""]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -143,7 +137,7 @@ class MainWindow(QMainWindow):
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
 
-        for column in (0, 1, 2, 3, 5):
+        for column in (0, 1, 2, 3, 5, 6):
             header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
 
@@ -282,8 +276,6 @@ class MainWindow(QMainWindow):
 
     def _wire_events(self):
         self.add_button.clicked.connect(self.on_add)
-        self.delete_button.clicked.connect(self.on_delete_selected)
-        self.browse_progression_button.clicked.connect(self.on_import)
         self.refresh_progressions_button.clicked.connect(
             lambda: self._refresh_progression_list(
                 select_path=self.progression_combo.currentData()
@@ -673,8 +665,8 @@ class MainWindow(QMainWindow):
         self.chord_input.clear()
         self.request_recompute(select_row=len(self.session.chords) - 1)
 
-    def on_delete_selected(self):
-        row = self.table.currentRow()
+    def on_delete_row(self, row, checked=False):
+        del checked
         if row < 0 or row >= len(self.session.chords):
             return
 
@@ -684,7 +676,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Delete chord", str(e))
             return
 
-        self.request_recompute()
+        next_row = min(row, len(self.session.chords) - 1)
+        self.request_recompute(select_row=next_row if next_row >= 0 else None)
 
     def on_pin_selected_voicing(self):
         row = self.table.currentRow()
@@ -842,23 +835,7 @@ class MainWindow(QMainWindow):
             self.progression_combo.blockSignals(previous_block_state)
             self.on_import(file_path)
 
-    def on_import(self, file_path=None):
-        if file_path is None:
-            import_directory = self._export_directory()
-            try:
-                import_directory.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                QMessageBox.warning(self, "Load chord progression", str(exc))
-                return
-            file_path, _ = QFileDialog.getOpenFileName(
-                self,
-                "Load Chord Progression",
-                str(import_directory),
-                "Chord progression (*.json)",
-            )
-            if not file_path:
-                return
-
+    def on_import(self, file_path):
         try:
             with open(file_path, "r", encoding="utf-8") as session_file:
                 data = json.load(session_file)
@@ -1026,6 +1003,17 @@ class MainWindow(QMainWindow):
                 if column == 0:
                     item.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(row_index, column, item)
+
+            remove_button = QPushButton("X")
+            remove_button.setToolTip(f"Remove {row['symbol']} from progression")
+            remove_button.setFixedWidth(28)
+            remove_button.clicked.connect(
+                lambda checked=False, index=row_index: self.on_delete_row(
+                    index,
+                    checked,
+                )
+            )
+            self.table.setCellWidget(row_index, 6, remove_button)
 
     def closeEvent(self, event):
         self.audio_player.close()
