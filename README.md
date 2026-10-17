@@ -43,7 +43,7 @@ pairs in nearby octaves, choosing the combination that best connects the
 progression.
 To override the automatic choice for one chord, select a specific pair in the
 voicing controls to preview its notes on the keyboard. Previewing does not
-change the progression; click **Pin Previewed Voicing** to keep that choice.
+change the progression; click **Pin** to keep that choice.
 The labels indicate which note is on the bottom.
 
 ## Audio playback

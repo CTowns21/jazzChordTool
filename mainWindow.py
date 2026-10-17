@@ -105,14 +105,14 @@ class MainWindow(QMainWindow):
         )
         top.addWidget(self.progression_combo)
 
+        self.browse_progression_button = QPushButton("Browse...")
+        top.addWidget(self.browse_progression_button)
+
         self.refresh_progressions_button = QPushButton("Refresh")
         self.refresh_progressions_button.setToolTip(
             "Rescan the current export folder for progression files"
         )
         top.addWidget(self.refresh_progressions_button)
-
-        self.browse_progression_button = QPushButton("Browse...")
-        top.addWidget(self.browse_progression_button)
 
         self.export_button = QPushButton("Save...")
         top.addWidget(self.export_button)
@@ -171,7 +171,7 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(self.valid_voicing_list, 1)
 
         voicing_actions = QHBoxLayout()
-        self.pin_selected_button = QPushButton("Pin Preview")
+        self.pin_selected_button = QPushButton("Pin")
         self.unpin_selected_button = QPushButton("Unpin")
         voicing_actions.addWidget(self.pin_selected_button)
         voicing_actions.addWidget(self.unpin_selected_button)
@@ -336,7 +336,7 @@ class MainWindow(QMainWindow):
 
     def _clear_selection_panel(self):
         self.valid_voicing_list.clear()
-        self.valid_voicing_list.addItem("(select a chord row)")
+        self.valid_voicing_list.addItem("(Add a chord to get started)")
         self.valid_voicing_list.setEnabled(False)
 
         self.pin_selected_button.setEnabled(False)
