@@ -34,3 +34,10 @@ To override the automatic choice for one chord, select a specific pair in the
 voicing controls to preview its notes on the keyboard. Previewing does not
 change the progression; click **Pin Previewed Voicing** to keep that choice.
 The labels indicate which note is on the bottom.
+
+## Audio playback
+
+Use **Play Preview** to hear the voicing shown for the selected chord without
+pinning it. **Play Progression** plays the selected voicings in sequence, with
+two beats per chord at the chosen tempo. Use **Stop** to end playback early.
+Playback uses a simple synthesized tone rather than piano samples.

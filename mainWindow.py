@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSpinBox,
     QStatusBar,
     QTableWidget,
     QTableWidgetItem,
@@ -29,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from audioPlayer import TonePlayer
 from pianoWidget import PianoWidget
 from sessionModel import Session
 from voicingEngine import STYLES, pinnedVoicings, transitionCost, voicingCost
@@ -46,6 +48,7 @@ class MainWindow(QMainWindow):
         self.resize(1180, 720)
 
         self.session = Session()
+        self.audio_player = TonePlayer(self)
         self.revision = 0
         self.active_thread = None
         self.active_worker = None
@@ -180,6 +183,24 @@ class MainWindow(QMainWindow):
         self.piano_widget.setMinimumHeight(210)
         piano_layout.addWidget(self.piano_widget)
 
+        playback_layout = QHBoxLayout()
+        self.play_preview_button = QPushButton("Play Preview")
+        self.play_progression_button = QPushButton("Play Progression")
+        self.stop_playback_button = QPushButton("Stop")
+        self.stop_playback_button.setEnabled(False)
+        self.tempo_spin = QSpinBox()
+        self.tempo_spin.setRange(40, 240)
+        self.tempo_spin.setValue(100)
+        self.tempo_spin.setSuffix(" BPM")
+        self.tempo_spin.setToolTip("Tempo for progression playback")
+        playback_layout.addWidget(self.play_preview_button)
+        playback_layout.addWidget(self.play_progression_button)
+        playback_layout.addWidget(self.stop_playback_button)
+        playback_layout.addStretch(1)
+        playback_layout.addWidget(QLabel("Tempo:"))
+        playback_layout.addWidget(self.tempo_spin)
+        piano_layout.addLayout(playback_layout)
+
         body.addWidget(piano_group, 2)
 #
         self.status = QStatusBar()
@@ -198,6 +219,11 @@ class MainWindow(QMainWindow):
         self.valid_voicing_combo.currentTextChanged.connect(
             self.on_preview_voicing_changed
         )
+        self.play_preview_button.clicked.connect(self.on_play_preview)
+        self.play_progression_button.clicked.connect(self.on_play_progression)
+        self.stop_playback_button.clicked.connect(self.on_stop_playback)
+        self.audio_player.playingChanged.connect(self.on_playing_changed)
+        self.audio_player.playbackError.connect(self.on_playback_error)
         self.show_previous_chord_checkbox.toggled.connect(
             self.on_show_previous_chord_toggled
         )
@@ -215,6 +241,7 @@ class MainWindow(QMainWindow):
 
         self.pin_selected_button.setEnabled(False)
         self.unpin_selected_button.setEnabled(False)
+        self.play_preview_button.setEnabled(False)
 
         self.piano_widget.clear()
 
@@ -240,6 +267,7 @@ class MainWindow(QMainWindow):
         self.valid_voicing_combo.setEnabled(bool(labels))
         self.pin_selected_button.setEnabled(bool(labels))
         self.unpin_selected_button.setEnabled(True)
+        self.play_preview_button.setEnabled(bool(labels))
 
         selected_label = pinned
         if voicing is not None and voicing.label in labels:
@@ -290,6 +318,51 @@ class MainWindow(QMainWindow):
             else None
         )
         self.piano_widget.set_voicing(preview_voicing, previous_overlay)
+
+    def on_play_preview(self):
+        pitches = [note["midi"] for note in self.piano_widget.notes]
+        try:
+            self.audio_player.play_preview(pitches)
+        except (RuntimeError, ValueError) as exc:
+            self.on_playback_error(str(exc))
+            return
+        self.status.showMessage("Playing selected voicing preview")
+
+    def on_play_progression(self):
+        if not self.current_voicings:
+            self.status.showMessage("Add chords before playing the progression.", 5000)
+            return
+
+        try:
+            self.audio_player.play_progression(
+                [voicing.pitches for voicing in self.current_voicings],
+                self.tempo_spin.value(),
+            )
+        except (RuntimeError, ValueError) as exc:
+            self.on_playback_error(str(exc))
+            return
+        self.status.showMessage(
+            f"Playing progression at {self.tempo_spin.value()} BPM"
+        )
+
+    def on_stop_playback(self):
+        self.audio_player.stop()
+        self.status.showMessage("Playback stopped", 3000)
+
+    def on_playing_changed(self, playing):
+        self.stop_playback_button.setEnabled(playing)
+        self.play_preview_button.setEnabled(
+            playing or 0 <= self.table.currentRow() < len(self.session.chords)
+        )
+        self.play_progression_button.setEnabled(
+            playing or bool(self.current_voicings)
+        )
+        if not playing:
+            self.status.showMessage("Playback finished", 3000)
+
+    def on_playback_error(self, message):
+        self.status.showMessage(f"Audio playback error: {message}", 8000)
+        QMessageBox.warning(self, "Audio playback", message)
 
     def on_show_previous_chord_toggled(self, checked):
         del checked
@@ -490,6 +563,7 @@ class MainWindow(QMainWindow):
         return imported_session
 
     def request_recompute(self, select_row=None):
+        self.audio_player.stop()
         self.pending_select_row = select_row
         self.revision += 1
         revision = self.revision
@@ -542,6 +616,7 @@ class MainWindow(QMainWindow):
 
         self.current_rows = rows or []
         self.current_voicings = voicings or []
+        self.play_progression_button.setEnabled(bool(self.current_voicings))
 
         previous_row = self.table.currentRow()
         self.populate_table(self.current_rows)
@@ -580,3 +655,7 @@ class MainWindow(QMainWindow):
                 if column == 0:
                     item.setTextAlignment(Qt.AlignCenter)
                 self.table.setItem(row_index, column, item)
+
+    def closeEvent(self, event):
+        self.audio_player.stop()
+        super().closeEvent(event)
