@@ -12,7 +12,9 @@ from chordParser import LETTERS
 NOTE_PATTERN = re.compile(r"^([A-G])([#b]*)$")
 DEGREE_NAMES = {
     "1": "Root",
+    "2": "2nd",
     "3": "3rd",
+    "4": "4th",
     "5": "5th",
     "6": "6th",
     "7": "7th",
@@ -23,7 +25,9 @@ DEGREE_NAMES = {
 }
 INTERVAL_BASES = {
     "1": (1, 0, "perfect"),
+    "2": (2, 2, "major"),
     "3": (3, 4, "major"),
+    "4": (4, 5, "perfect"),
     "5": (5, 7, "perfect"),
     "6": (6, 9, "major"),
     "7": (7, 11, "major"),
@@ -80,14 +84,25 @@ class StaffWidget(QWidget):
             voicing.notes,
             voicing.pitches,
         ):
+            display_degree = degree
+            chord_symbol = chord.symbol.lower()
+            if degree == "9" and (
+                chord.quality == "sus2" or "add2" in chord_symbol
+            ):
+                display_degree = "2"
+            elif degree == "11" and (
+                chord.quality in {"sus4", "dom7sus4", "dom9sus4"}
+                or "add4" in chord_symbol
+            ):
+                display_degree = "4"
             notes.append({
                 "degree": degree,
                 "name": name,
                 "midi": midi,
                 "pitch_class": pitch_class,
-                "role": DEGREE_NAMES.get(degree, degree),
+                "role": DEGREE_NAMES.get(display_degree, display_degree),
                 "interval": interval_name(
-                    degree,
+                    display_degree,
                     pitch_class,
                     chord.rootPc,
                 ),

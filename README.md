@@ -30,10 +30,13 @@ containing `libfluidsynth-3.dll`.
 
 Chord symbols use a note name from A through G, optionally followed by `#` or
 `b`, and a supported chord quality or modifier. Examples include `Cm7`,
-`Ebmaj7`, `F7b9`, `Bm7b5`, and `Fadd9/A`. Common major, minor, dominant,
-diminished, augmented, sixth, and ninth qualities are supported, along with
-modifiers such as `b9`, `#9`, `#11`, `b13`, `b5`, `#5`, `add9`, and `add11`.
-Unsupported or malformed symbols are reported when you try to add them.
+`Ebmaj7`, `F7b9`, `Bm7b5`, and `Fadd9/A`. Supported qualities include major,
+minor, dominant, diminished, augmented, sixth, and ninth chords, as well as
+suspended (`Csus2`, `Csus4`, `C7sus4`, `C9sus4`) and extended 11th and 13th
+chords (`Cmaj11`, `Cm11`, `C11`, `Cmaj13`, `Cm13`, `C13`). Modifiers include
+`b9`, `#9`, `#11`, `b13`, `b5`, `#5`, `add2`, `add4`, `add9`, `add11`, and
+`add13`. Unsupported or malformed symbols are reported when you try to add
+them.
 
 ## Explore voicings
 
@@ -43,6 +46,12 @@ The **Style** menu controls the automatic voicing approach:
 - **shell**: compact voicings that include the root and core chord tones.
 - **two-note**: pairs such as root and seventh or third and fifth, with
   nearby-octave choices.
+- **close position** and **open position**: compact and spread chord shapes,
+  each with available inversions.
+- **drop-2**: four-note voicings with the second-highest voice lowered by an
+  octave.
+- **left/right hand**: a lower accompaniment shape paired with upper chord
+  tones in a separate register.
 
 The chart displays the voicing selected for each chord, taking voice leading
 through the progression into account. In **Voicing Controls**, select any
