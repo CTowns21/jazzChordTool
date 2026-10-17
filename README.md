@@ -6,9 +6,13 @@
 * Run the following:
 
 ```cmd
-pip install PySide6
+pip install -r requirements.txt
 python guiApp.py
 ```
+
+SoundFont playback also requires the native FluidSynth library. On Windows,
+install FluidSynth 2 or newer and set `FLUIDSYNTH_DLL_DIR` to the directory
+containing `libfluidsynth-3.dll` if FluidSynth is not found automatically.
 
 ## Save and load chord progressions
 
@@ -41,4 +45,12 @@ Use **Play Preview** to hear the voicing shown for the selected chord without
 pinning it. **Play Progression** plays the selected voicings in sequence, with
 two beats per chord at the chosen tempo. As each chord plays, its row is
 selected and its notes are shown on the keyboard. Use **Stop** to end playback
-early. Playback uses a simple synthesized tone rather than piano samples.
+early.
+
+Use **Load SoundFont...** to load a piano or other instrument file (`.sf2` or
+`.sf3`), then choose one of its bank 0 presets. Volume and reverb can be
+adjusted beside the instrument selector. The selected SoundFont, preset,
+volume, and reverb are remembered on this computer. SoundFont files are not
+bundled; use a file whose license permits your intended use. A tested option is
+the [Upright Piano KW SoundFont](https://github.com/AppCenterCDN-App/modubible-soundfonts/releases/download/v1/piano-upright-kw.sf3),
+which is CC0 1.0.

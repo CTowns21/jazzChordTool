@@ -8,8 +8,9 @@ Author: Carson Towns
 import copy
 import json
 import time
+from pathlib import Path
 
-from PySide6.QtCore import QThread, Qt
+from PySide6.QtCore import QSettings, QThread, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSlider,
     QSpinBox,
     QStatusBar,
     QTableWidget,
@@ -49,6 +51,7 @@ class MainWindow(QMainWindow):
 
         self.session = Session()
         self.audio_player = TonePlayer(self)
+        self.settings = QSettings("CTowns21", "ChordProgressionCalculator")
         self.revision = 0
         self.active_thread = None
         self.active_worker = None
@@ -60,6 +63,7 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._wire_events()
+        self._restore_audio_settings()
         self.request_recompute()
 
     def _build_ui(self):
@@ -201,6 +205,32 @@ class MainWindow(QMainWindow):
         playback_layout.addWidget(self.tempo_spin)
         piano_layout.addLayout(playback_layout)
 
+        soundfont_layout = QHBoxLayout()
+        self.load_soundfont_button = QPushButton("Load SoundFont...")
+        self.soundfont_label = QLabel("No SoundFont loaded")
+        self.soundfont_label.setMinimumWidth(130)
+        self.soundfont_label.setToolTip("Selected SoundFont file")
+        self.preset_combo = QComboBox()
+        self.preset_combo.setEnabled(False)
+        self.preset_combo.setMinimumWidth(190)
+        self.volume_slider = QSlider(Qt.Horizontal)
+        self.volume_slider.setRange(0, 100)
+        self.volume_slider.setValue(70)
+        self.volume_slider.setToolTip("Playback volume")
+        self.reverb_slider = QSlider(Qt.Horizontal)
+        self.reverb_slider.setRange(0, 100)
+        self.reverb_slider.setValue(35)
+        self.reverb_slider.setToolTip("SoundFont reverb level")
+        soundfont_layout.addWidget(self.load_soundfont_button)
+        soundfont_layout.addWidget(self.soundfont_label)
+        soundfont_layout.addWidget(QLabel("Instrument:"))
+        soundfont_layout.addWidget(self.preset_combo, 2)
+        soundfont_layout.addWidget(QLabel("Volume:"))
+        soundfont_layout.addWidget(self.volume_slider)
+        soundfont_layout.addWidget(QLabel("Reverb:"))
+        soundfont_layout.addWidget(self.reverb_slider)
+        piano_layout.addLayout(soundfont_layout)
+
         body.addWidget(piano_group, 2)
 #
         self.status = QStatusBar()
@@ -226,6 +256,20 @@ class MainWindow(QMainWindow):
         self.audio_player.playbackError.connect(self.on_playback_error)
         self.audio_player.progressionChordChanged.connect(
             self.on_progression_chord_changed
+        )
+        self.load_soundfont_button.clicked.connect(self.on_load_soundfont)
+        self.preset_combo.currentIndexChanged.connect(self.on_soundfont_preset_changed)
+        self.volume_slider.valueChanged.connect(
+            lambda value: self.audio_player.set_volume(value / 100)
+        )
+        self.volume_slider.valueChanged.connect(
+            lambda value: self.settings.setValue("audio/volume", value)
+        )
+        self.reverb_slider.valueChanged.connect(
+            lambda value: self.audio_player.set_reverb(value / 100)
+        )
+        self.reverb_slider.valueChanged.connect(
+            lambda value: self.settings.setValue("audio/reverb", value)
         )
         self.show_previous_chord_checkbox.toggled.connect(
             self.on_show_previous_chord_toggled
@@ -330,6 +374,72 @@ class MainWindow(QMainWindow):
             self.on_playback_error(str(exc))
             return
         self.status.showMessage("Playing selected voicing preview")
+
+    def on_load_soundfont(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load SoundFont",
+            "",
+            "SoundFont files (*.sf2 *.sf3);;All files (*)",
+        )
+        if file_path:
+            self._load_soundfont_path(file_path)
+
+    def _load_soundfont_path(self, file_path):
+        try:
+            presets = self.audio_player.load_soundfont(file_path)
+        except (OSError, RuntimeError, ValueError) as exc:
+            QMessageBox.warning(self, "Load SoundFont", str(exc))
+            self.status.showMessage(f"SoundFont error: {exc}", 8000)
+            return
+
+        previous_block = self.preset_combo.blockSignals(True)
+        self.preset_combo.clear()
+        for bank, preset, name in presets:
+            self.preset_combo.addItem(name, f"{bank}:{preset}")
+        saved_preset = self.settings.value("audio/preset", "0:0")
+        saved_index = self.preset_combo.findData(saved_preset)
+        self.preset_combo.setCurrentIndex(saved_index if saved_index >= 0 else 0)
+        self.preset_combo.blockSignals(previous_block)
+        self.preset_combo.setEnabled(True)
+        self._apply_selected_soundfont_preset()
+
+        filename = Path(file_path).name
+        self.soundfont_label.setText(filename)
+        self.settings.setValue("audio/soundfont", file_path)
+        self.status.showMessage(
+            f"Loaded SoundFont {filename} ({len(presets)} bank 0 presets)",
+            5000,
+        )
+
+    def _apply_selected_soundfont_preset(self):
+        preset_data = self.preset_combo.currentData()
+        if not preset_data:
+            return
+        try:
+            bank, preset = (int(value) for value in preset_data.split(":"))
+            self.audio_player.select_preset(bank, preset)
+        except (RuntimeError, ValueError) as exc:
+            QMessageBox.warning(self, "Select instrument", str(exc))
+            return
+        self.settings.setValue("audio/preset", preset_data)
+
+    def on_soundfont_preset_changed(self, index):
+        if index >= 0:
+            self._apply_selected_soundfont_preset()
+
+    def _restore_audio_settings(self):
+        self.volume_slider.setValue(
+            self.settings.value("audio/volume", 70, type=int)
+        )
+        self.reverb_slider.setValue(
+            self.settings.value("audio/reverb", 35, type=int)
+        )
+        soundfont_path = self.settings.value("audio/soundfont", "", type=str)
+        if soundfont_path and Path(soundfont_path).is_file():
+            self._load_soundfont_path(soundfont_path)
+        elif soundfont_path:
+            self.soundfont_label.setText("SoundFont not found")
 
     def on_play_progression(self):
         if not self.current_voicings:
@@ -679,5 +789,5 @@ class MainWindow(QMainWindow):
                 self.table.setItem(row_index, column, item)
 
     def closeEvent(self, event):
-        self.audio_player.stop()
+        self.audio_player.close()
         super().closeEvent(event)
