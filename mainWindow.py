@@ -6,11 +6,13 @@ Author: Carson Towns
 """
 
 import copy
+import json
 import time
 
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
@@ -32,6 +34,10 @@ from pianoWidget import PianoWidget
 from sessionModel import Session
 from voicingEngine import STYLES, availableLabels
 from workers import RecomputeWorker
+
+
+SESSION_FORMAT = "jazz-chord-voicer"
+SESSION_VERSION = 1
 
 
 class MainWindow(QMainWindow):
@@ -83,6 +89,12 @@ class MainWindow(QMainWindow):
 
         self.delete_button = QPushButton("Delete Selected")
         top.addWidget(self.delete_button)
+
+        self.import_button = QPushButton("Load...")
+        top.addWidget(self.import_button)
+
+        self.export_button = QPushButton("Save...")
+        top.addWidget(self.export_button)
 
         # Main content: table and chord controls above, piano below.
         body = QVBoxLayout()
@@ -200,6 +212,8 @@ class MainWindow(QMainWindow):
         self.add_with_pin_button.clicked.connect(self.on_add_with_selected_pin)
         self.undo_button.clicked.connect(self.on_undo)
         self.delete_button.clicked.connect(self.on_delete_selected)
+        self.import_button.clicked.connect(self.on_import)
+        self.export_button.clicked.connect(self.on_export)
         self.pin_selected_button.clicked.connect(self.on_pin_selected_from_combo)
         self.unpin_selected_button.clicked.connect(self.on_unpin_selected)
         self.style_combo.currentTextChanged.connect(self.on_style_changed)
@@ -394,6 +408,115 @@ class MainWindow(QMainWindow):
             return
 
         self.request_recompute()
+
+    def on_export(self):
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Chord Progression",
+            "chord-progression.json",
+            "Chord progression (*.json)",
+        )
+        if not file_path:
+            return
+        if not file_path.lower().endswith(".json"):
+            file_path += ".json"
+
+        data = {
+            "format": SESSION_FORMAT,
+            "version": SESSION_VERSION,
+            "style": self.session.styleName,
+            "chords": [
+                {"symbol": chord.symbol, "pin": pin}
+                for chord, pin in zip(self.session.chords, self.session.pins)
+            ],
+        }
+
+        try:
+            with open(file_path, "w", encoding="utf-8") as session_file:
+                json.dump(data, session_file, indent=2, ensure_ascii=False)
+                session_file.write("\n")
+        except OSError as exc:
+            QMessageBox.warning(self, "Save chord progression", str(exc))
+            return
+
+        self.status.showMessage(f"Saved chord progression to {file_path}", 5000)
+
+    def on_import(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load Chord Progression",
+            "",
+            "Chord progression (*.json)",
+        )
+        if not file_path:
+            return
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as session_file:
+                data = json.load(session_file)
+            imported_session = self._session_from_data(data)
+        except (OSError, UnicodeError, ValueError) as exc:
+            QMessageBox.warning(self, "Load chord progression", str(exc))
+            return
+
+        if self.session.chords:
+            answer = QMessageBox.question(
+                self,
+                "Replace current progression?",
+                (
+                    f"Load {len(imported_session.chords)} chord(s) from "
+                    f"{file_path} and replace the current progression?"
+                ),
+                QMessageBox.Yes | QMessageBox.Cancel,
+                QMessageBox.Cancel,
+            )
+            if answer != QMessageBox.Yes:
+                return
+
+        self.session = imported_session
+        previous_block_state = self.style_combo.blockSignals(True)
+        self.style_combo.setCurrentText(imported_session.styleName)
+        self.style_combo.blockSignals(previous_block_state)
+        self.request_recompute(
+            select_row=0 if imported_session.chords else None
+        )
+
+    @staticmethod
+    def _session_from_data(data):
+        if not isinstance(data, dict):
+            raise ValueError("The file must contain a JSON object.")
+        if data.get("format") != SESSION_FORMAT:
+            raise ValueError("This is not a Jazz Chord Voicer progression file.")
+        if (
+            type(data.get("version")) is not int
+            or data["version"] != SESSION_VERSION
+        ):
+            raise ValueError(
+                f"Unsupported progression file version: {data.get('version')!r}"
+            )
+        if not isinstance(data.get("style"), str):
+            raise ValueError("The progression file must include a style.")
+        if not isinstance(data.get("chords"), list):
+            raise ValueError("The progression file must include a chords list.")
+
+        imported_session = Session()
+        imported_session.setStyle(data["style"])
+
+        for index, chord_data in enumerate(data["chords"], start=1):
+            if not isinstance(chord_data, dict):
+                raise ValueError(f"Chord {index} must be a JSON object.")
+            symbol = chord_data.get("symbol")
+            pin = chord_data.get("pin")
+            if not isinstance(symbol, str):
+                raise ValueError(f"Chord {index} must include a symbol.")
+            if pin is not None and not isinstance(pin, str):
+                raise ValueError(f"The pin for chord {index} must be text or null.")
+            try:
+                imported_session.addChord(symbol, pin)
+            except ValueError as exc:
+                raise ValueError(f"Invalid chord {index}: {exc}") from exc
+
+        return imported_session
 
     def request_recompute(self, select_row=None):
         self.pending_select_row = select_row
