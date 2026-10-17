@@ -51,10 +51,10 @@ class Style:
 
 
 STYLES = {
-    "rootless": Style("rootless", 4, 52, 60, 12, ["typeA", "typeB"], True, False),
     "shell": Style("shell", 3, 40, 52, 16, ["shell", "shellB", "triad"], False, True),
+    "rootless": Style("rootless", 4, 52, 60, 12, ["typeA", "typeB"], True, False),
 }
-DEFAULT_STYLE = "rootless"
+DEFAULT_STYLE = "shell"
 
 TEMPLATE_STYLE = {
     label: style.name
@@ -146,7 +146,7 @@ def pinnedVoicings(chord, label):
             return []
         return [buildVoicing(chord, label, degrees, STYLES[TEMPLATE_STYLE[label]])]
 
-    return [v for v in inversionVoicings(chord, STYLES["rootless"]) if v.label == label]
+    return [v for v in inversionVoicings(chord, STYLES["shell"]) if v.label == label]
 
 
 def availableLabels(chord):
