@@ -224,6 +224,9 @@ class MainWindow(QMainWindow):
         self.stop_playback_button.clicked.connect(self.on_stop_playback)
         self.audio_player.playingChanged.connect(self.on_playing_changed)
         self.audio_player.playbackError.connect(self.on_playback_error)
+        self.audio_player.progressionChordChanged.connect(
+            self.on_progression_chord_changed
+        )
         self.show_previous_chord_checkbox.toggled.connect(
             self.on_show_previous_chord_toggled
         )
@@ -333,6 +336,9 @@ class MainWindow(QMainWindow):
             self.status.showMessage("Add chords before playing the progression.", 5000)
             return
 
+        self.status.showMessage(
+            f"Playing progression at {self.tempo_spin.value()} BPM"
+        )
         try:
             self.audio_player.play_progression(
                 [voicing.pitches for voicing in self.current_voicings],
@@ -340,10 +346,6 @@ class MainWindow(QMainWindow):
             )
         except (RuntimeError, ValueError) as exc:
             self.on_playback_error(str(exc))
-            return
-        self.status.showMessage(
-            f"Playing progression at {self.tempo_spin.value()} BPM"
-        )
 
     def on_stop_playback(self):
         self.audio_player.stop()
@@ -359,6 +361,26 @@ class MainWindow(QMainWindow):
         )
         if not playing:
             self.status.showMessage("Playback finished", 3000)
+
+    def on_progression_chord_changed(self, row):
+        if not (0 <= row < len(self.current_voicings)):
+            return
+
+        self.table.selectRow(row)
+        previous_voicing = self.current_voicings[row - 1] if row > 0 else None
+        previous_overlay = (
+            previous_voicing
+            if self.show_previous_chord_checkbox.isChecked()
+            else None
+        )
+        self.piano_widget.set_voicing(
+            self.current_voicings[row],
+            previous_overlay,
+        )
+        self.status.showMessage(
+            f"Playing chord {row + 1}/{len(self.current_voicings)}: "
+            f"{self.session.chords[row].symbol}"
+        )
 
     def on_playback_error(self, message):
         self.status.showMessage(f"Audio playback error: {message}", 8000)

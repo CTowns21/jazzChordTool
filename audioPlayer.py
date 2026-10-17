@@ -12,6 +12,7 @@ from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 class TonePlayer(QObject):
     playingChanged = Signal(bool)
     playbackError = Signal(str)
+    progressionChordChanged = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -22,6 +23,9 @@ class TonePlayer(QObject):
         self._sink = None
         self._buffer = None
         self._playing = False
+        self._progression_chord_duration_ms = 0
+        self._progression_chord_count = 0
+        self._progression_chord_index = 0
 
     def play_preview(self, pitches, duration_ms=1500):
         self.stop()
@@ -45,12 +49,17 @@ class TonePlayer(QObject):
             )
 
         self._start_audio_data(bytes(audio_data), device, audio_format)
+        self._progression_chord_duration_ms = chord_duration_ms
+        self._progression_chord_count = len(pitch_sets)
+        self._progression_chord_index = 0
         self._set_playing(True)
-        self._timer.start(chord_duration_ms * len(pitch_sets))
+        self.progressionChordChanged.emit(0)
+        self._timer.start(chord_duration_ms)
 
     def stop(self):
         self._timer.stop()
         self._stop_sink()
+        self._reset_progression()
         self._set_playing(False)
 
     def _set_playing(self, playing):
@@ -59,12 +68,24 @@ class TonePlayer(QObject):
             self.playingChanged.emit(playing)
 
     def _on_timer(self):
+        next_index = self._progression_chord_index + 1
+        if next_index < self._progression_chord_count:
+            self._progression_chord_index = next_index
+            self.progressionChordChanged.emit(next_index)
+            self._timer.start(self._progression_chord_duration_ms)
+            return
         self._finish()
 
     def _finish(self):
         self._timer.stop()
         self._stop_sink()
+        self._reset_progression()
         self._set_playing(False)
+
+    def _reset_progression(self):
+        self._progression_chord_duration_ms = 0
+        self._progression_chord_count = 0
+        self._progression_chord_index = 0
 
     def _start_chord(self, pitches, duration_ms):
         if not pitches:

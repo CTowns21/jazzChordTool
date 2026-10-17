@@ -39,5 +39,6 @@ The labels indicate which note is on the bottom.
 
 Use **Play Preview** to hear the voicing shown for the selected chord without
 pinning it. **Play Progression** plays the selected voicings in sequence, with
-two beats per chord at the chosen tempo. Use **Stop** to end playback early.
-Playback uses a simple synthesized tone rather than piano samples.
+two beats per chord at the chosen tempo. As each chord plays, its row is
+selected and its notes are shown on the keyboard. Use **Stop** to end playback
+early. Playback uses a simple synthesized tone rather than piano samples.
