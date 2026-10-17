@@ -56,6 +56,7 @@ class Style:
 STYLES = {
     "rootless": Style("rootless", 4, 52, 60, 12, ["typeA", "typeB"], True, False),
     "shell": Style("shell", 3, 40, 52, 16, ["shell", "shellB", "triad"], False, True),
+    "two-note": Style("two-note", 2, 48, 58, 12, [], False, False),
 }
 DEFAULT_STYLE = "rootless"
 
@@ -122,6 +123,26 @@ def templateVoicings(chord, style):
     return [buildVoicing(chord, label, VOICING_TEMPLATES[label], style) for label in labels]
 
 
+def twoNoteVoicings(chord, style):
+    pairs = []
+    seventh = "7" if "7" in chord.degrees else "6"
+    if "1" in chord.degrees and seventh in chord.degrees:
+        interval_name = "7th" if seventh == "7" else "6th"
+        pairs.append((f"root + {interval_name}", ("1", seventh)))
+    if "3" in chord.degrees and "5" in chord.degrees:
+        pairs.append(("3rd + 5th", ("3", "5")))
+    if "1" in chord.degrees and "3" in chord.degrees:
+        pairs.append(("root + 3rd", ("1", "3")))
+    if "1" in chord.degrees and "5" in chord.degrees:
+        pairs.append(("root + 5th", ("1", "5")))
+
+    voicings = []
+    for label, degrees in pairs:
+        for ordered_degrees in (degrees, degrees[::-1]):
+            voicings.append(buildVoicing(chord, label, ordered_degrees, style))
+    return voicings
+
+
 def inversionVoicings(chord, style):
     toneDegrees = chooseToneDegrees(chord, style)
     voicings = []
@@ -136,6 +157,9 @@ def inversionVoicings(chord, style):
 
 
 def candidateVoicings(chord, style):
+    if style.name == "two-note":
+        return twoNoteVoicings(chord, style)
+
     candidates = templateVoicings(chord, style)
     if style.allowInversions:
         candidates += inversionVoicings(chord, style)

@@ -23,3 +23,7 @@ includes every note, even when the voicing falls below the default range.
 For slash chords such as `Fadd9/A`, choose **slash bass** in the selected
 chord's voicing list and pin it to put the written bass note below the chord
 tones.
+
+The **two-note** style uses voice-leading between two-note chord voicings. It
+considers root-and-seventh, third-and-fifth, root-and-third, and root-and-fifth
+pairs, choosing the combination that best connects the progression.
