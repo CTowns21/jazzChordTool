@@ -41,9 +41,10 @@ class Session:
 
         pin = None
         if pin_text:
-            pin = matchLabel(pin_text)
-            if pin is None or not pinnedVoicings(chord, pin):
-                options = ", ".join(availableLabels(chord))
+            labels = availableLabels(chord)
+            pin = matchLabel(pin_text, labels)
+            if pin is None or not pinnedVoicings(chord, pin, STYLES[self.styleName]):
+                options = ", ".join(labels)
                 raise ValueError(f"Can't pin '{pin_text}' on {chord.symbol}. Options: {options}")
 
         self.chords.append(chord)
@@ -65,9 +66,10 @@ class Session:
             raise IndexError("Chord index out of range")
 
         chord = self.chords[index]
-        label = matchLabel(label_text)
-        if label is None or not pinnedVoicings(chord, label):
-            options = ", ".join(availableLabels(chord))
+        labels = availableLabels(chord)
+        label = matchLabel(label_text, labels)
+        if label is None or not pinnedVoicings(chord, label, STYLES[self.styleName]):
+            options = ", ".join(labels)
             raise ValueError(f"Can't pin that on {chord.symbol}. Options: {options}")
 
         self.pins[index] = label

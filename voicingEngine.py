@@ -139,8 +139,32 @@ def twoNoteVoicings(chord, style):
     voicings = []
     for label, degrees in pairs:
         for ordered_degrees in (degrees, degrees[::-1]):
-            voicings.append(buildVoicing(chord, label, ordered_degrees, style))
-    return voicings
+            bottom_degree = ordered_degrees[0]
+            bottom_name = {
+                "1": "root",
+                "3": "3rd",
+                "5": "5th",
+                "6": "6th",
+                "7": "7th",
+            }[bottom_degree]
+            voicings.append(
+                buildVoicing(
+                    chord,
+                    f"{label} ({bottom_name} on bottom)",
+                    ordered_degrees,
+                    style,
+                )
+            )
+    return [
+        Voicing(
+            voicing.label,
+            voicing.notes,
+            [pitch + octave_shift for pitch in voicing.pitches],
+            voicing.style,
+        )
+        for voicing in voicings
+        for octave_shift in (-12, 0, 12)
+    ]
 
 
 def inversionVoicings(chord, style):
@@ -199,6 +223,11 @@ def pinnedVoicings(chord, label, style=None):
     if label == SLASH_BASS_LABEL:
         return slashBassVoicings(chord, style or STYLES[DEFAULT_STYLE])
 
+    two_note_voicings = twoNoteVoicings(chord, STYLES["two-note"])
+    matching_two_note = [voicing for voicing in two_note_voicings if voicing.label == label]
+    if matching_two_note:
+        return matching_two_note
+
     if label in VOICING_TEMPLATES:
         degrees = VOICING_TEMPLATES[label]
         if not canSupply(chord, degrees):
@@ -213,13 +242,18 @@ def availableLabels(chord):
         label for label in list(VOICING_TEMPLATES) + INVERSION_NAMES
         if pinnedVoicings(chord, label)
     ]
+    labels.extend(dict.fromkeys(
+        voicing.label
+        for voicing in twoNoteVoicings(chord, STYLES["two-note"])
+    ))
     if chord.bassLetter is not None:
         labels.append(SLASH_BASS_LABEL)
     return labels
 
 
-def matchLabel(text):
-    labels = list(VOICING_TEMPLATES) + INVERSION_NAMES + [SLASH_BASS_LABEL]
+def matchLabel(text, labels=None):
+    if labels is None:
+        labels = list(VOICING_TEMPLATES) + INVERSION_NAMES + [SLASH_BASS_LABEL]
     text = text.strip().lower()
 
     exact = [label for label in labels if label.lower() == text]

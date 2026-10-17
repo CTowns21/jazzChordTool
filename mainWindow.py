@@ -12,6 +12,7 @@ import time
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
     QComboBox,
+    QCheckBox,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
@@ -30,7 +31,7 @@ from PySide6.QtWidgets import (
 
 from pianoWidget import PianoWidget
 from sessionModel import Session
-from voicingEngine import STYLES
+from voicingEngine import STYLES, pinnedVoicings, transitionCost, voicingCost
 from workers import RecomputeWorker
 
 
@@ -135,11 +136,11 @@ class MainWindow(QMainWindow):
 
         controls_layout = QVBoxLayout(self.selection_group)
 
-        controls_layout.addWidget(QLabel("Valid voicings for this chord:"))
+        controls_layout.addWidget(QLabel("Preview a voicing (does not pin):"))
         self.valid_voicing_combo = QComboBox()
         controls_layout.addWidget(self.valid_voicing_combo)
 
-        self.pin_selected_button = QPushButton("Pin to Selected Voicing")
+        self.pin_selected_button = QPushButton("Pin Previewed Voicing")
         controls_layout.addWidget(self.pin_selected_button)
 
         self.unpin_selected_button = QPushButton("Unpin")
@@ -151,7 +152,13 @@ class MainWindow(QMainWindow):
         piano_layout = QVBoxLayout(piano_group)
 
         legend_layout = QHBoxLayout()
+        self.show_previous_chord_checkbox = QCheckBox("Show previous chord")
+        self.show_previous_chord_checkbox.setChecked(True)
+        legend_layout.addWidget(self.show_previous_chord_checkbox)
+        legend_layout.addSpacing(12)
+
         legend_items = (
+            ("#B8B8B8", "Previous chord"),
             ("#4A90E2", "Root"),
             ("#E6A23C", "Guide tones (3, 7, 6)"),
             ("#67C23A", "Other chord tones / extensions"),
@@ -188,6 +195,12 @@ class MainWindow(QMainWindow):
         self.export_button.clicked.connect(self.on_export)
         self.pin_selected_button.clicked.connect(self.on_pin_selected_from_combo)
         self.unpin_selected_button.clicked.connect(self.on_unpin_selected)
+        self.valid_voicing_combo.currentTextChanged.connect(
+            self.on_preview_voicing_changed
+        )
+        self.show_previous_chord_checkbox.toggled.connect(
+            self.on_show_previous_chord_toggled
+        )
         self.style_combo.currentTextChanged.connect(self.on_style_changed)
 
         self.chord_input.returnPressed.connect(self.on_add)
@@ -219,6 +232,7 @@ class MainWindow(QMainWindow):
 
         labels = self.session.availableLabelsFor(row_index)
 
+        previous_block_state = self.valid_voicing_combo.blockSignals(True)
         self.valid_voicing_combo.clear()
         for label in labels:
             self.valid_voicing_combo.addItem(label)
@@ -227,13 +241,59 @@ class MainWindow(QMainWindow):
         self.pin_selected_button.setEnabled(bool(labels))
         self.unpin_selected_button.setEnabled(True)
 
-        if pinned and pinned in labels:
-            self.valid_voicing_combo.setCurrentText(pinned)
+        selected_label = pinned
+        if voicing is not None and voicing.label in labels:
+            selected_label = voicing.label
+        if selected_label in labels:
+            self.valid_voicing_combo.setCurrentText(selected_label)
+        self.valid_voicing_combo.blockSignals(previous_block_state)
 
-        if voicing is not None:
-            self.piano_widget.set_voicing(voicing)
-        else:
+        self.on_preview_voicing_changed(self.valid_voicing_combo.currentText())
+
+    def on_preview_voicing_changed(self, label):
+        row_index = self.table.currentRow()
+        if not (0 <= row_index < len(self.session.chords)):
             self.piano_widget.clear()
+            return
+
+        voicings = pinnedVoicings(
+            self.session.chords[row_index],
+            label,
+            STYLES[self.session.styleName],
+        )
+        if not voicings:
+            self.piano_widget.clear()
+            self.status.showMessage(
+                f"Can't preview voicing: {label}", 5000
+            )
+            return
+
+        previous_voicing = (
+            self.current_voicings[row_index - 1]
+            if row_index > 0 and row_index - 1 < len(self.current_voicings)
+            else None
+        )
+        preview_voicing = min(
+            voicings,
+            key=lambda candidate: (
+                voicingCost(candidate)
+                + (
+                    transitionCost(previous_voicing, candidate)
+                    if previous_voicing is not None
+                    else 0
+                )
+            ),
+        )
+        previous_overlay = (
+            previous_voicing
+            if self.show_previous_chord_checkbox.isChecked()
+            else None
+        )
+        self.piano_widget.set_voicing(preview_voicing, previous_overlay)
+
+    def on_show_previous_chord_toggled(self, checked):
+        del checked
+        self.on_preview_voicing_changed(self.valid_voicing_combo.currentText())
 
     def on_table_selection_changed(self):
         row = self.table.currentRow()

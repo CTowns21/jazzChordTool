@@ -23,20 +23,23 @@ class PianoWidget(QWidget):
         self.low_midi = self.default_low_midi
         self.high_midi = self.default_high_midi
         self.notes = []      # [{"midi": 60, "name": "C", "degree": "1"}]
+        self.previous_notes = []
         self.setMinimumSize(0, 210)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-    def set_notes(self, notes):
+    def set_notes(self, notes, previous_notes=None):
         self.notes = notes or []
-        if self.notes:
-            self._center_range_on_notes()
+        self.previous_notes = previous_notes or []
+        visible_notes = self.notes + self.previous_notes
+        if visible_notes:
+            self._center_range_on_notes(visible_notes)
         else:
             self.low_midi = self.default_low_midi
             self.high_midi = self.default_high_midi
         self.update()
 
-    def _center_range_on_notes(self):
-        pitches = [note["midi"] for note in self.notes]
+    def _center_range_on_notes(self, notes):
+        pitches = [note["midi"] for note in notes]
         lowest = min(pitches)
         highest = max(pitches)
         octaves = max(1, math.ceil((highest - lowest + 12) / 12))
@@ -52,18 +55,35 @@ class PianoWidget(QWidget):
         self.low_midi = low_midi
         self.high_midi = low_midi + range_size
 
-    def set_voicing(self, voicing):
+    def set_voicing(self, voicing, previous_voicing=None):
         notes = []
-        for (degree, name, _pc), midi in zip(voicing.notes, voicing.pitches):
+        for (degree, name, _), midi in zip(voicing.notes, voicing.pitches):
             notes.append({
                 "midi": midi,
                 "name": name,
                 "degree": degree,
             })
-        self.set_notes(notes)
+        previous_notes = []
+        if previous_voicing is not None:
+            for (degree, name, _), midi in zip(
+                previous_voicing.notes,
+                previous_voicing.pitches,
+            ):
+                previous_notes.append({
+                    "midi": midi,
+                    "name": name,
+                    "degree": degree,
+                })
+        self.set_notes(notes, previous_notes)
 
     def clear(self):
         self.set_notes([])
+
+    def color_for_previous_note(self, midi):
+        return QColor("#B8B8B8") if self.is_white(midi) else QColor("#666666")
+
+    def label_color_for_previous_note(self, midi):
+        return Qt.black if self.is_white(midi) else QColor("#F2F2F2")
 
     def color_for_degree(self, degree):
         if degree == "1":
@@ -109,6 +129,10 @@ class PianoWidget(QWidget):
 
         white_positions = {}
         active_by_midi = {note["midi"]: note for note in self.notes}
+        previous_by_midi = {
+            note["midi"]: note for note in self.previous_notes
+            if note["midi"] not in active_by_midi
+        }
 
         # Draw white keys and their labels first.
         x = rect.left()
@@ -117,28 +141,40 @@ class PianoWidget(QWidget):
             white_positions[midi] = key_rect
 
             active = active_by_midi.get(midi)
-            fill = self.color_for_degree(active["degree"]) if active else Qt.white
+            previous = previous_by_midi.get(midi)
+            if active:
+                fill = self.color_for_degree(active["degree"])
+            elif previous:
+                fill = self.color_for_previous_note(midi)
+            else:
+                fill = Qt.white
 
             painter.setPen(QPen(Qt.black, 1))
             painter.setBrush(fill)
             painter.drawRect(key_rect)
 
             # For white keys, draw the name and degree labels below the key
-            if active:
+            if active or previous:
+                note = active or previous
                 label_top = rect.top() + black_h + 8
 
                 name_font = QFont("Arial")
                 name_font.setPixelSize(white_name_px)
                 name_font.setBold(True)
                 painter.setFont(name_font)
-                painter.setPen(Qt.black)
+                label_color = (
+                    Qt.black
+                    if active
+                    else self.label_color_for_previous_note(midi)
+                )
+                painter.setPen(label_color)
                 painter.drawText(
                     QRectF(
                         key_rect.left() + 1, label_top,
                         key_rect.width() - 2, white_name_h,
                     ),
                     Qt.AlignCenter,
-                    active["name"],
+                    note["name"],
                 )
 
                 degree_font = QFont("Arial")
@@ -151,7 +187,7 @@ class PianoWidget(QWidget):
                         key_rect.width() - 2, white_degree_h,
                     ),
                     Qt.AlignCenter,
-                    active["degree"],
+                    note["degree"],
                 )
 
             x += white_w
@@ -170,25 +206,33 @@ class PianoWidget(QWidget):
             key_rect = QRectF(key_x, rect.top(), black_w, black_h)
 
             active = active_by_midi.get(midi)
-            fill = (
-                self.color_for_degree(active["degree"])
-                if active
-                else QColor("#111111")
-            )
+            previous = previous_by_midi.get(midi)
+            if active:
+                fill = self.color_for_degree(active["degree"])
+            elif previous:
+                fill = self.color_for_previous_note(midi)
+            else:
+                fill = QColor("#111111")
 
             painter.setPen(QPen(Qt.black, 1))
             painter.setBrush(fill)
             painter.drawRect(key_rect)
 
             # For black keys, draw the name and degree labels inside the key
-            if active:
+            if active or previous:
+                note = active or previous
                 label_top = key_rect.top() + black_h/2
 
                 name_font = QFont("Arial")
                 name_font.setPixelSize(black_name_px)
                 name_font.setBold(True)
                 painter.setFont(name_font)
-                painter.setPen(Qt.black)
+                label_color = (
+                    Qt.black
+                    if active
+                    else self.label_color_for_previous_note(midi)
+                )
+                painter.setPen(label_color)
                 painter.drawText(
                     QRectF(
                         key_rect.left() + 1,
@@ -197,7 +241,7 @@ class PianoWidget(QWidget):
                         black_name_h,
                     ),
                     Qt.AlignCenter,
-                    active["name"],
+                    note["name"],
                 )
 
                 degree_font = QFont("Arial")
@@ -212,7 +256,7 @@ class PianoWidget(QWidget):
                         black_degree_h,
                     ),
                     Qt.AlignCenter,
-                    active["degree"],
+                    note["degree"],
                 )
 
         # Draw the piano's outer border.
