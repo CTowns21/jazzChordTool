@@ -1,68 +1,105 @@
-# Jazz Chord Tool
+# Jazz Chord Voicer
 
-## How to run
+Jazz Chord Voicer is a desktop learning tool for exploring chord symbols,
+piano voicings, voice leading, and how a voicing looks and sounds. Enter a
+progression, compare possible voicings, preview them on the keyboard and
+grand staff, and play them with a SoundFont instrument.
 
-* Place all files in same directory
-* Run the following:
+## Setup and launch
+
+Install the Python dependencies and start the application:
 
 ```cmd
 pip install -r requirements.txt
 python guiApp.py
 ```
 
-SoundFont playback also requires the native FluidSynth library. On Windows,
-install FluidSynth 2 or newer and set `FLUIDSYNTH_DLL_DIR` to the directory
-containing `libfluidsynth-3.dll` if FluidSynth is not found automatically.
+Sound playback uses FluidSynth and also requires its native library. Install
+FluidSynth 2 or newer for your operating system. If the app cannot find the
+FluidSynth library on Windows, set `FLUIDSYNTH_DLL_DIR` to the directory
+containing `libfluidsynth-3.dll`.
 
-## Save and load chord progressions
+## Build a progression
 
-Use **Save...** to export the current progression as a JSON file, including
-its voicing style and any pinned voicings. The **Load** dropdown lists saved
-progressions in the current export folder; use **Refresh** after adding files
-outside the app.
-Loading validates the whole file before replacing the current progression and
-asks for confirmation when chords are already in the session.
+1. Enter a chord symbol in the **Chord** field and press **Add** or Enter.
+2. Repeat for each chord. The chart shows the chord, bass note, selected
+   voicing, notes, and whether that voicing is pinned.
+3. Select a chart row to see its voicing choices and preview on the keyboard
+   and grand staff.
+4. Click the **X** at the end of a row to remove that chord.
 
-Progressions save by default to the Git-ignored `ExportedProgressions` folder
-beside the application. Use **Export folder...** to choose a different default
-folder. The selected folder is remembered on this computer; Save dialogs can
-still navigate to other locations.
+Chord symbols use a note name from A through G, optionally followed by `#` or
+`b`, and a supported chord quality or modifier. Examples include `Cm7`,
+`Ebmaj7`, `F7b9`, `Bm7b5`, and `Fadd9/A`. Common major, minor, dominant,
+diminished, augmented, sixth, and ninth qualities are supported, along with
+modifiers such as `b9`, `#9`, `#11`, `b13`, `b5`, `#5`, `add9`, and `add11`.
+Unsupported or malformed symbols are reported when you try to add them.
 
-The keyboard and grand-staff views show the selected voicing together. The
-staff also labels each note with its chord role and interval from the root.
-Both views follow chord previews and progression playback. The keyboard
-automatically adjusts to center the selected voicing and includes every note,
-even when the voicing falls below the default range.
-Use **Show previous chord** to toggle the preceding chord's gray notes on the
-keyboard when comparing voicings.
+## Explore voicings
 
-For slash chords such as `Fadd9/A`, choose **slash bass** in the selected
-chord's voicing list and pin it to put the written bass note below the chord
-tones.
+The **Style** menu controls the automatic voicing approach:
 
-The **two-note** style uses voice-leading between two-note chord voicings. It
-considers root-and-seventh, third-and-fifth, root-and-third, and root-and-fifth
-pairs in nearby octaves, choosing the combination that best connects the
-progression.
-To override the automatic choice for one chord, select a specific pair in the
-voicing controls to preview its notes on the keyboard. Previewing does not
-change the progression; click **Pin** to keep that choice.
-The labels indicate which note is on the bottom.
+- **rootless**: four-note jazz voicings that omit the root when appropriate.
+- **shell**: compact voicings that include the root and core chord tones.
+- **two-note**: pairs such as root and seventh or third and fifth, with
+  nearby-octave choices.
 
-## Audio playback
+The chart displays the voicing selected for each chord, taking voice leading
+through the progression into account. In **Voicing Controls**, select any
+listed option to preview it without changing the progression. Click **Pin**
+to keep that choice for the selected chord; **Unpin** returns it to automatic
+selection. Two-note labels indicate which note is on the bottom.
 
-Use **Play Preview** to hear the voicing shown for the selected chord without
-pinning it. **Play Progression** plays the selected voicings in sequence, with
-two beats per chord at the chosen tempo. As each chord plays, its row is
-selected and its notes are shown on the keyboard. Use **Stop** to end playback
-early.
+For slash chords such as `Fadd9/A`, choose **slash bass** from the voicing
+choices and pin it to place the written bass note below the chord voicing.
 
-Place `.sf2` or `.sf3` SoundFont files in the `SoundFonts` folder beside the
-application, then choose one from the SoundFont list. **Refresh** rescans that
-folder, including subfolders; **Browse...** can load a SoundFont from elsewhere.
-Choose one of the loaded file's bank 0 presets. Volume and reverb can be
-adjusted beside the instrument selector. The selected SoundFont, preset,
-volume, and reverb are remembered on this computer. SoundFont files are not
-bundled; use files whose licenses permit your intended use. A tested option is
-the [Upright Piano KW SoundFont](https://github.com/AppCenterCDN-App/modubible-soundfonts/releases/download/v1/piano-upright-kw.sf3),
-which is CC0 1.0.
+## Keyboard and staff
+
+The keyboard and grand staff display the selected voicing together. The staff
+shows standard noteheads and accidentals, with a text summary identifying each
+note's chord role and interval from the root. For example, a minor seventh
+chord can show a minor third (`m3`) and minor seventh (`m7`).
+
+The keyboard colors the root, guide tones, and other chord tones differently.
+Enable **Show previous chord** to display the preceding voicing as gray notes
+on the keyboard; the staff shows only the current voicing. The keyboard adjusts
+its visible range to include the notes being shown.
+
+## Listen
+
+- **Play Preview** auditions the selected voicing without pinning it.
+- **Play Progression** plays the current progression in order and follows the
+  active chord in the chart and visualizations.
+- Set the playback tempo in **BPM**, or click **Stop** to end playback early.
+
+Progression playback currently gives each chord two beats.
+
+### SoundFonts and instrument settings
+
+Place `.sf2` or `.sf3` files in the `SoundFonts` folder beside the app.
+Subfolders are scanned too. Choose a SoundFont from the list and select one of
+its available bank 0 instruments. Use **Refresh** after adding or removing
+SoundFonts; **Browse...** can load a SoundFont from elsewhere.
+
+The **Volume** and **Reverb** sliders adjust playback. SoundFont, instrument,
+volume, and reverb settings are remembered on this computer. SoundFonts are
+not included with the app: use files whose licenses permit your intended use.
+The [Upright Piano KW SoundFont](https://github.com/AppCenterCDN-App/modubible-soundfonts/releases/download/v1/piano-upright-kw.sf3)
+is one tested option and is released under CC0 1.0.
+
+## Save and load progressions
+
+Click **Save...** to save the current chord symbols, voicing style, and pinned
+choices as a JSON progression file. The default location is the
+Git-ignored `ExportedProgressions` folder beside the app. Use **Choose music
+folder...** to set a different default folder; that preference is remembered
+on this computer.
+
+The **Load** dropdown lists JSON progression files in the configured folder,
+including its subfolders. Select a file to load it, or use **Refresh** after
+adding files outside the app. Loading validates the file and asks before
+replacing a nonempty progression.
+
+The `SoundFonts` and `ExportedProgressions` folders are included in the
+repository only as empty placeholders. Their contents are Git-ignored, so
+personal SoundFonts and exported progression files are not added to the repo.
