@@ -162,7 +162,7 @@ class PianoWidget(QWidget):
                 name_font.setPixelSize(black_name_px)
                 name_font.setBold(True)
                 painter.setFont(name_font)
-                painter.setPen(Qt.white)
+                painter.setPen(Qt.black)
                 painter.drawText(
                     QRectF(
                         key_rect.left() + 1,
