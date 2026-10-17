@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -37,7 +38,7 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Jazz Chord Voicer")
-        self.resize(1180, 650)
+        self.resize(1180, 720)
 
         self.session = Session()
         self.revision = 0
@@ -56,9 +57,9 @@ class MainWindow(QMainWindow):
     def _build_ui(self):
         central = QWidget()
         self.setCentralWidget(central)
-
         outer = QVBoxLayout(central)
 
+        # Input and application controls
         top = QHBoxLayout()
         outer.addLayout(top)
 
@@ -83,24 +84,49 @@ class MainWindow(QMainWindow):
         self.delete_button = QPushButton("Delete Selected")
         top.addWidget(self.delete_button)
 
-        body = QHBoxLayout()
+        # Main content: table and chord controls above, piano below.
+        body = QVBoxLayout()
         outer.addLayout(body, 1)
 
+        top_row = QHBoxLayout()
+        body.addLayout(top_row, 3)
+
         self.table = QTableWidget(0, 6)
-        self.table.setHorizontalHeaderLabels(["#", "Chord", "Bass", "Voicing", "Notes", "Pinned"])
+        self.table.setHorizontalHeaderLabels(
+            ["#", "Chord", "Bass", "Voicing", "Notes", "Pinned"]
+        )
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        body.addWidget(self.table, 3)
+        self.table.setMinimumHeight(180)
+
+        header = self.table.horizontalHeader()
+        header.setStretchLastSection(False)
+
+        for column in (0, 1, 2, 3, 5):
+            header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.Stretch)
+
+        self.table.setStyleSheet("""
+            QTableWidget {
+                font-size: 11pt;
+            }
+            QHeaderView::section {
+                font-size: 11pt;
+                font-weight: bold;
+                padding: 6px;
+            }
+        """)
+        self.table.verticalHeader().setDefaultSectionSize(30)
+        top_row.addWidget(self.table, 1)
 
         self.selection_group = QGroupBox("Selected Chord")
-        body.addWidget(self.selection_group, 2)
+        top_row.addWidget(self.selection_group, 1)
 
-        side_layout = QVBoxLayout(self.selection_group)
+        selection_layout = QHBoxLayout(self.selection_group)
 
         form = QFormLayout()
-        side_layout.addLayout(form)
+        selection_layout.addLayout(form, 2)
 
         self.selected_index_label = QLabel("—")
         self.selected_symbol_label = QLabel("—")
@@ -114,36 +140,56 @@ class MainWindow(QMainWindow):
         form.addRow("Current voicing:", self.selected_current_voicing_label)
         form.addRow("Pinned:", self.selected_pin_status_label)
 
-        side_layout.addWidget(QLabel("Valid voicings for this chord:"))
+        controls_layout = QVBoxLayout()
+        selection_layout.addLayout(controls_layout, 3)
 
+        controls_layout.addWidget(QLabel("Valid voicings for this chord:"))
         self.valid_voicing_combo = QComboBox()
-        side_layout.addWidget(self.valid_voicing_combo)
+        controls_layout.addWidget(self.valid_voicing_combo)
 
         self.pin_selected_button = QPushButton("Pin to Selected Voicing")
-        side_layout.addWidget(self.pin_selected_button)
+        controls_layout.addWidget(self.pin_selected_button)
 
         self.unpin_selected_button = QPushButton("Unpin")
-        side_layout.addWidget(self.unpin_selected_button)
+        controls_layout.addWidget(self.unpin_selected_button)
 
-        side_layout.addSpacing(12)
-
-        side_layout.addWidget(QLabel("Quick add with optional pin:"))
-
+        controls_layout.addWidget(QLabel("Quick add with optional pin:"))
         self.quick_pin_combo = QComboBox()
         self.quick_pin_combo.addItem("(no pin)")
-        side_layout.addWidget(self.quick_pin_combo)
+        controls_layout.addWidget(self.quick_pin_combo)
 
         self.add_with_pin_button = QPushButton("Add Chord With Selected Pin")
-        side_layout.addWidget(self.add_with_pin_button)
+        controls_layout.addWidget(self.add_with_pin_button)
+        controls_layout.addStretch(1)
 
-        side_layout.addSpacing(16)
+        piano_group = QGroupBox("Voicing on keyboard")
+        piano_layout = QVBoxLayout(piano_group)
 
-        side_layout.addWidget(QLabel("Voicing on keyboard:"))
+        legend_layout = QHBoxLayout()
+        legend_items = (
+            ("#4A90E2", "Root"),
+            ("#E6A23C", "Guide tones (3, 7, 6)"),
+            ("#67C23A", "Other chord tones / extensions"),
+        )
+        for color, text in legend_items:
+            swatch = QWidget()
+            swatch.setFixedSize(14, 14)
+            swatch.setStyleSheet(
+                f"background-color: {color}; border: 1px solid #555;"
+            )
+            legend_layout.addWidget(swatch)
+            legend_layout.addWidget(QLabel(text))
+            legend_layout.addSpacing(12)
+
+        legend_layout.addStretch()
+        piano_layout.addLayout(legend_layout)
+
         self.piano_widget = PianoWidget()
-        side_layout.addWidget(self.piano_widget)
+        self.piano_widget.setMinimumHeight(210)
+        piano_layout.addWidget(self.piano_widget)
 
-        side_layout.addStretch(1)
-
+        body.addWidget(piano_group, 2)
+#
         self.status = QStatusBar()
         self.setStatusBar(self.status)
 
@@ -159,11 +205,10 @@ class MainWindow(QMainWindow):
         self.style_combo.currentTextChanged.connect(self.on_style_changed)
 
         self.chord_input.returnPressed.connect(self.on_add)
+        self.chord_input.textChanged.connect(self.on_chord_input_changed)
 
         self.table.itemSelectionChanged.connect(self.on_table_selection_changed)
         self.table.itemDoubleClicked.connect(self.on_table_double_clicked)
-
-        self.chord_input.textChanged.connect(self.on_chord_input_changed)
 
     def _clear_selection_panel(self):
         self.selected_index_label.setText("—")
@@ -188,16 +233,28 @@ class MainWindow(QMainWindow):
 
         chord = self.session.chords[row_index]
         pinned = self.session.pins[row_index]
-        row = self.current_rows[row_index] if row_index < len(self.current_rows) else None
-        voicing = self.current_voicings[row_index] if row_index < len(self.current_voicings) else None
+        row = (
+            self.current_rows[row_index]
+            if row_index < len(self.current_rows)
+            else None
+        )
+        voicing = (
+            self.current_voicings[row_index]
+            if row_index < len(self.current_voicings)
+            else None
+        )
 
-        self.selected_index_label.setText(str(row["index"]) if row else str(row_index + 1))
+        self.selected_index_label.setText(
+            str(row["index"]) if row else str(row_index + 1)
+        )
         self.selected_symbol_label.setText(row["symbol"] if row else chord.symbol)
         self.selected_bass_label.setText(row["bass"] if row else "—")
-        self.selected_current_voicing_label.setText(row["voicing"] if row else "—")
+        self.selected_current_voicing_label.setText(
+            row["voicing"] if row else "—"
+        )
         self.selected_pin_status_label.setText(pinned if pinned else "Automatic")
 
-        labels = self.session.available_labels_for(row_index)
+        labels = self.session.availableLabelsFor(row_index)
 
         self.valid_voicing_combo.clear()
         for label in labels:
@@ -227,8 +284,7 @@ class MainWindow(QMainWindow):
         if not (0 <= row < len(self.session.chords)):
             return
 
-        chord = self.session.chords[row]
-        self.chord_input.setText(chord.symbol)
+        self.chord_input.setText(self.session.chords[row].symbol)
         self.chord_input.setFocus()
 
     def on_chord_input_changed(self):
@@ -242,8 +298,7 @@ class MainWindow(QMainWindow):
 
         try:
             chord = parseChordSymbol(text)
-            labels = availableLabels(chord)
-            for label in labels:
+            for label in availableLabels(chord):
                 self.quick_pin_combo.addItem(label)
         except Exception:
             pass
@@ -285,7 +340,7 @@ class MainWindow(QMainWindow):
         self.request_recompute(select_row=len(self.session.chords) - 1)
 
     def on_undo(self):
-        self.session.remove_last()
+        self.session.removeLast()
         self.request_recompute()
 
     def on_delete_selected(self):
@@ -294,7 +349,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.session.delete_at(row)
+            self.session.deleteAt(row)
         except Exception as e:
             QMessageBox.warning(self, "Delete chord", str(e))
             return
@@ -311,7 +366,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.session.pin_chord(row, label)
+            self.session.pinChord(row, label)
         except Exception as e:
             QMessageBox.warning(self, "Pin chord", str(e))
             return
@@ -324,7 +379,7 @@ class MainWindow(QMainWindow):
             return
 
         try:
-            self.session.unpin_chord(row)
+            self.session.unpinChord(row)
         except Exception as e:
             QMessageBox.warning(self, "Unpin chord", str(e))
             return
@@ -333,7 +388,7 @@ class MainWindow(QMainWindow):
 
     def on_style_changed(self, style_name):
         try:
-            self.session.set_style(style_name)
+            self.session.setStyle(style_name)
         except Exception as e:
             QMessageBox.warning(self, "Style", str(e))
             return
@@ -347,27 +402,41 @@ class MainWindow(QMainWindow):
         session_copy = copy.deepcopy(self.session)
         self.last_compute_started = time.perf_counter()
 
-        if self.active_thread is not None:
-            self.active_thread.quit()
-            self.active_thread.wait()
-            self.active_thread = None
+        old_thread = self.active_thread
+        if old_thread is not None:
+            old_thread.quit()
+            old_thread.wait()
+            if self.active_thread is old_thread:
+                self.active_thread = None
+                self.active_worker = None
 
-        self.active_thread = QThread()
-        self.active_worker = RecomputeWorker(revision, session_copy)
-        self.active_worker.moveToThread(self.active_thread)
+        thread = QThread(self)
+        worker = RecomputeWorker(revision, session_copy)
+        worker.moveToThread(thread)
 
-        self.active_thread.started.connect(self.active_worker.run)
-        self.active_worker.finished.connect(self.on_recompute_finished)
-        self.active_worker.finished.connect(self.active_thread.quit)
-        self.active_worker.finished.connect(self.active_worker.deleteLater)
-        self.active_thread.finished.connect(self._clear_active_worker)
+        self.active_thread = thread
+        self.active_worker = worker
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(self.on_recompute_finished)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+
+        thread.finished.connect(
+            lambda finished_thread=thread: self._on_thread_finished(
+                finished_thread
+            )
+        )
+        thread.finished.connect(thread.deleteLater)
 
         self.status.showMessage("Recomputing...")
-        self.active_thread.start()
+        thread.start()
 
-    def _clear_active_worker(self):
-        self.active_thread = None
-        self.active_worker = None
+    def _on_thread_finished(self, thread):
+        # Ignore cleanup signals from an earlier recompute thread.
+        if self.active_thread is thread:
+            self.active_thread = None
+            self.active_worker = None
 
     def on_recompute_finished(self, revision, rows, voicings, error):
         if revision != self.revision:
@@ -402,7 +471,7 @@ class MainWindow(QMainWindow):
     def populate_table(self, rows):
         self.table.setRowCount(len(rows))
 
-        for r, row in enumerate(rows):
+        for row_index, row in enumerate(rows):
             values = [
                 str(row["index"]),
                 row["symbol"],
@@ -412,8 +481,8 @@ class MainWindow(QMainWindow):
                 "Yes" if row["pinned"] else "",
             ]
 
-            for c, value in enumerate(values):
+            for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                if c == 0:
+                if column == 0:
                     item.setTextAlignment(Qt.AlignCenter)
-                self.table.setItem(r, c, item)
+                self.table.setItem(row_index, column, item)

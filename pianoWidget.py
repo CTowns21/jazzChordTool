@@ -7,7 +7,7 @@ Author: Carson Towns
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QSizePolicy, QWidget
 
 WHITE_PCS = {0, 2, 4, 5, 7, 9, 11}
 BLACK_PCS = {1, 3, 6, 8, 10}
@@ -19,7 +19,8 @@ class PianoWidget(QWidget):
         self.low_midi = 48   # C3
         self.high_midi = 84  # C6
         self.notes = []      # [{"midi": 60, "name": "C", "degree": "1"}]
-        self.setMinimumHeight(170)
+        self.setMinimumSize(0, 210)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def set_notes(self, notes):
         self.notes = notes or []
@@ -55,19 +56,36 @@ class PianoWidget(QWidget):
         rect = self.rect().adjusted(8, 8, -8, -8)
         painter.fillRect(rect, QColor("#F5F5F5"))
 
-        white_keys = [m for m in range(self.low_midi, self.high_midi + 1) if self.is_white(m)]
+        white_keys = [
+            midi for midi in range(self.low_midi, self.high_midi + 1)
+            if self.is_white(midi)
+        ]
         if not white_keys:
+            painter.end()
             return
 
         white_w = rect.width() / len(white_keys)
         white_h = rect.height()
+        black_w = white_w * 0.65
+        black_h = white_h * 0.62
+
+        # Scale labels with key dimensions; clamp sizes to keep them legible.
+        scale = min(white_w / 25, white_h / 150)
+        white_name_px = max(12, min(26, round(15 * scale)))
+        white_degree_px = max(10, min(22, round(13 * scale)))
+        black_name_px = max(10, min(17, round(12 * scale)))
+        black_degree_px = max(9, min(15, round(11 * scale)))
+
+        white_name_h = white_name_px + 5
+        white_degree_h = white_degree_px + 5
+        black_name_h = black_name_px + 4
+        black_degree_h = black_degree_px + 4
 
         white_positions = {}
         active_by_midi = {note["midi"]: note for note in self.notes}
 
+        # Draw white keys and their labels first.
         x = rect.left()
-
-        # Draw white keys first
         for midi in white_keys:
             key_rect = QRectF(x, rect.top(), white_w, white_h)
             white_positions[midi] = key_rect
@@ -79,33 +97,46 @@ class PianoWidget(QWidget):
             painter.setBrush(fill)
             painter.drawRect(key_rect)
 
+            # For white keys, draw the name and degree labels below the key
             if active:
+                label_top = rect.top() + black_h + 8
+
+                name_font = QFont("Arial")
+                name_font.setPixelSize(white_name_px)
+                name_font.setBold(True)
+                painter.setFont(name_font)
                 painter.setPen(Qt.black)
-                painter.setFont(QFont("Arial", 8))
                 painter.drawText(
-                    key_rect.adjusted(2, 2, -2, -22),
-                    Qt.AlignTop | Qt.AlignHCenter,
+                    QRectF(
+                        key_rect.left() + 1, label_top,
+                        key_rect.width() - 2, white_name_h,
+                    ),
+                    Qt.AlignCenter,
                     active["name"],
                 )
+
+                degree_font = QFont("Arial")
+                degree_font.setPixelSize(white_degree_px)
+                degree_font.setBold(True)
+                painter.setFont(degree_font)
                 painter.drawText(
-                    key_rect.adjusted(2, 20, -2, -2),
-                    Qt.AlignBottom | Qt.AlignHCenter,
+                    QRectF(
+                        key_rect.left() + 1, label_top + white_name_h,
+                        key_rect.width() - 2, white_degree_h,
+                    ),
+                    Qt.AlignCenter,
                     active["degree"],
                 )
 
             x += white_w
 
-        # Draw black keys on top
-        black_w = white_w * 0.65
-        black_h = white_h * 0.62
-
+        # Draw black keys on top of the white keys.
         for midi in range(self.low_midi, self.high_midi + 1):
             if midi % 12 not in BLACK_PCS:
                 continue
 
             prev_white = midi - 1
-            next_white = midi + 1
-            if prev_white not in white_positions or next_white not in white_positions:
+            if prev_white not in white_positions or midi + 1 not in white_positions:
                 continue
 
             left_rect = white_positions[prev_white]
@@ -113,27 +144,52 @@ class PianoWidget(QWidget):
             key_rect = QRectF(key_x, rect.top(), black_w, black_h)
 
             active = active_by_midi.get(midi)
-            fill = self.color_for_degree(active["degree"]) if active else QColor("#111111")
+            fill = (
+                self.color_for_degree(active["degree"])
+                if active
+                else QColor("#111111")
+            )
 
             painter.setPen(QPen(Qt.black, 1))
             painter.setBrush(fill)
             painter.drawRect(key_rect)
 
+            # For black keys, draw the name and degree labels inside the key
             if active:
+                label_top = key_rect.top() + black_h/2
+
+                name_font = QFont("Arial")
+                name_font.setPixelSize(black_name_px)
+                name_font.setBold(True)
+                painter.setFont(name_font)
                 painter.setPen(Qt.white)
-                painter.setFont(QFont("Arial", 7))
                 painter.drawText(
-                    key_rect.adjusted(1, 1, -1, -12),
-                    Qt.AlignTop | Qt.AlignHCenter,
+                    QRectF(
+                        key_rect.left() + 1,
+                        label_top,
+                        key_rect.width() - 2,
+                        black_name_h,
+                    ),
+                    Qt.AlignCenter,
                     active["name"],
                 )
+
+                degree_font = QFont("Arial")
+                degree_font.setPixelSize(black_degree_px)
+                degree_font.setBold(True)
+                painter.setFont(degree_font)
                 painter.drawText(
-                    key_rect.adjusted(1, 10, -1, -1),
-                    Qt.AlignBottom | Qt.AlignHCenter,
+                    QRectF(
+                        key_rect.left() + 1,
+                        label_top + black_name_h,
+                        key_rect.width() - 2,
+                        black_degree_h,
+                    ),
+                    Qt.AlignCenter,
                     active["degree"],
                 )
 
-        # Border
+        # Draw the piano's outer border.
         painter.setPen(QPen(QColor("#888888"), 1))
         painter.setBrush(Qt.NoBrush)
         painter.drawRect(rect)
