@@ -5,6 +5,8 @@ Description: Widget for piano visualization in GUI
 Author: Carson Towns
 """
 
+import math
+
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QSizePolicy, QWidget
@@ -16,15 +18,39 @@ BLACK_PCS = {1, 3, 6, 8, 10}
 class PianoWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.low_midi = 48   # C3
-        self.high_midi = 84  # C6
+        self.default_low_midi = 48   # C3
+        self.default_high_midi = 84  # C6
+        self.low_midi = self.default_low_midi
+        self.high_midi = self.default_high_midi
         self.notes = []      # [{"midi": 60, "name": "C", "degree": "1"}]
         self.setMinimumSize(0, 210)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def set_notes(self, notes):
         self.notes = notes or []
+        if self.notes:
+            self._center_range_on_notes()
+        else:
+            self.low_midi = self.default_low_midi
+            self.high_midi = self.default_high_midi
         self.update()
+
+    def _center_range_on_notes(self):
+        pitches = [note["midi"] for note in self.notes]
+        lowest = min(pitches)
+        highest = max(pitches)
+        octaves = max(1, math.ceil((highest - lowest + 12) / 12))
+        range_size = octaves * 12
+
+        desired_low = (lowest + highest - range_size) / 2
+        low_midi = round(desired_low / 12) * 12
+        while lowest < low_midi:
+            low_midi -= 12
+        while highest > low_midi + range_size:
+            low_midi += 12
+
+        self.low_midi = low_midi
+        self.high_midi = low_midi + range_size
 
     def set_voicing(self, voicing):
         notes = []
