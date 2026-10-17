@@ -4,3 +4,5 @@ __pycache__/
 *.pyd
 /SoundFonts/*
 !/SoundFonts/.gitkeep
+/ExportedProgressions/*
+!/ExportedProgressions/.gitkeep

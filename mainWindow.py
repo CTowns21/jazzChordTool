@@ -20,10 +20,12 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QListWidget,
     QMainWindow,
     QMessageBox,
     QPushButton,
     QSlider,
+    QSizePolicy,
     QSpinBox,
     QStatusBar,
     QTableWidget,
@@ -63,6 +65,7 @@ class MainWindow(QMainWindow):
 
         self._build_ui()
         self._wire_events()
+        self._refresh_progression_list()
         self._restore_audio_settings()
         self.request_recompute()
 
@@ -79,6 +82,7 @@ class MainWindow(QMainWindow):
 
         self.chord_input = QLineEdit()
         self.chord_input.setPlaceholderText("e.g. Dm7 or Ebmaj7/G")
+        self.chord_input.setMinimumWidth(120)
         top.addWidget(self.chord_input, 2)
 
         self.add_button = QPushButton("Add")
@@ -90,17 +94,34 @@ class MainWindow(QMainWindow):
         self.style_combo.addItems(STYLES.keys())
         top.addWidget(self.style_combo)
 
-        self.undo_button = QPushButton("Undo")
-        top.addWidget(self.undo_button)
-
         self.delete_button = QPushButton("Delete Selected")
         top.addWidget(self.delete_button)
 
-        self.import_button = QPushButton("Load...")
-        top.addWidget(self.import_button)
+        top.addWidget(QLabel("Load:"))
+        self.progression_combo = QComboBox()
+        self.progression_combo.setMinimumWidth(100)
+        self.progression_combo.setToolTip(
+            "Saved progressions in the current export folder"
+        )
+        top.addWidget(self.progression_combo)
+
+        self.refresh_progressions_button = QPushButton("Refresh")
+        self.refresh_progressions_button.setToolTip(
+            "Rescan the current export folder for progression files"
+        )
+        top.addWidget(self.refresh_progressions_button)
+
+        self.browse_progression_button = QPushButton("Browse...")
+        top.addWidget(self.browse_progression_button)
 
         self.export_button = QPushButton("Save...")
         top.addWidget(self.export_button)
+
+        self.export_folder_button = QPushButton("Choose export folder...")
+        self.export_folder_button.setToolTip(
+            f"Chord progressions will save to {self._export_directory()}"
+        )
+        top.addWidget(self.export_folder_button)
 
         # Main content: table and chord controls above, piano below.
         body = QVBoxLayout()
@@ -143,17 +164,18 @@ class MainWindow(QMainWindow):
 
         controls_layout = QVBoxLayout(self.selection_group)
 
-        controls_layout.addWidget(QLabel("Preview a voicing (does not pin):"))
-        self.valid_voicing_combo = QComboBox()
-        controls_layout.addWidget(self.valid_voicing_combo)
+        controls_layout.addWidget(
+            QLabel("Select a voicing to preview it on the keyboard:")
+        )
+        self.valid_voicing_list = QListWidget()
+        controls_layout.addWidget(self.valid_voicing_list, 1)
 
-        self.pin_selected_button = QPushButton("Pin Previewed Voicing")
-        controls_layout.addWidget(self.pin_selected_button)
-
+        voicing_actions = QHBoxLayout()
+        self.pin_selected_button = QPushButton("Pin Preview")
         self.unpin_selected_button = QPushButton("Unpin")
-        controls_layout.addWidget(self.unpin_selected_button)
-
-        controls_layout.addStretch(1)
+        voicing_actions.addWidget(self.pin_selected_button)
+        voicing_actions.addWidget(self.unpin_selected_button)
+        controls_layout.addLayout(voicing_actions)
 
         piano_group = QGroupBox("Voicing on keyboard")
         piano_layout = QVBoxLayout(piano_group)
@@ -245,18 +267,32 @@ class MainWindow(QMainWindow):
         self.status = QStatusBar()
         self.setStatusBar(self.status)
 
+        for button in self.findChildren(QPushButton):
+            button.setSizePolicy(
+                QSizePolicy.Fixed,
+                button.sizePolicy().verticalPolicy(),
+            )
+
         self._clear_selection_panel()
 
     def _wire_events(self):
         self.add_button.clicked.connect(self.on_add)
-        self.undo_button.clicked.connect(self.on_undo)
         self.delete_button.clicked.connect(self.on_delete_selected)
-        self.import_button.clicked.connect(self.on_import)
+        self.browse_progression_button.clicked.connect(self.on_import)
+        self.refresh_progressions_button.clicked.connect(
+            lambda: self._refresh_progression_list(
+                select_path=self.progression_combo.currentData()
+            )
+        )
+        self.progression_combo.currentIndexChanged.connect(
+            self.on_progression_changed
+        )
         self.export_button.clicked.connect(self.on_export)
-        self.pin_selected_button.clicked.connect(self.on_pin_selected_from_combo)
+        self.export_folder_button.clicked.connect(self.on_choose_export_folder)
+        self.pin_selected_button.clicked.connect(self.on_pin_selected_voicing)
         self.unpin_selected_button.clicked.connect(self.on_unpin_selected)
-        self.valid_voicing_combo.currentTextChanged.connect(
-            self.on_preview_voicing_changed
+        self.valid_voicing_list.currentItemChanged.connect(
+            self.on_voicing_item_changed
         )
         self.play_preview_button.clicked.connect(self.on_play_preview)
         self.play_progression_button.clicked.connect(self.on_play_progression)
@@ -299,9 +335,9 @@ class MainWindow(QMainWindow):
         self.table.itemDoubleClicked.connect(self.on_table_double_clicked)
 
     def _clear_selection_panel(self):
-        self.valid_voicing_combo.clear()
-        self.valid_voicing_combo.addItem("(select a chord row)")
-        self.valid_voicing_combo.setEnabled(False)
+        self.valid_voicing_list.clear()
+        self.valid_voicing_list.addItem("(select a chord row)")
+        self.valid_voicing_list.setEnabled(False)
 
         self.pin_selected_button.setEnabled(False)
         self.unpin_selected_button.setEnabled(False)
@@ -323,24 +359,33 @@ class MainWindow(QMainWindow):
 
         labels = self.session.availableLabelsFor(row_index)
 
-        previous_block_state = self.valid_voicing_combo.blockSignals(True)
-        self.valid_voicing_combo.clear()
+        previous_block_state = self.valid_voicing_list.blockSignals(True)
+        self.valid_voicing_list.clear()
         for label in labels:
-            self.valid_voicing_combo.addItem(label)
+            self.valid_voicing_list.addItem(label)
 
-        self.valid_voicing_combo.setEnabled(bool(labels))
+        self.valid_voicing_list.setEnabled(bool(labels))
         self.pin_selected_button.setEnabled(bool(labels))
         self.unpin_selected_button.setEnabled(True)
         self.play_preview_button.setEnabled(bool(labels))
+        if labels:
+            self.valid_voicing_list.setCurrentRow(0)
 
         selected_label = pinned
         if voicing is not None and voicing.label in labels:
             selected_label = voicing.label
         if selected_label in labels:
-            self.valid_voicing_combo.setCurrentText(selected_label)
-        self.valid_voicing_combo.blockSignals(previous_block_state)
+            matching_items = self.valid_voicing_list.findItems(
+                selected_label, Qt.MatchExactly
+            )
+            if matching_items:
+                self.valid_voicing_list.setCurrentItem(matching_items[0])
+        self.valid_voicing_list.blockSignals(previous_block_state)
 
-        self.on_preview_voicing_changed(self.valid_voicing_combo.currentText())
+        current_item = self.valid_voicing_list.currentItem()
+        self.on_preview_voicing_changed(
+            current_item.text() if current_item else ""
+        )
 
     def on_preview_voicing_changed(self, label):
         row_index = self.table.currentRow()
@@ -382,6 +427,12 @@ class MainWindow(QMainWindow):
             else None
         )
         self.piano_widget.set_voicing(preview_voicing, previous_overlay)
+
+    def on_voicing_item_changed(self, current, previous):
+        del previous
+        self.on_preview_voicing_changed(
+            current.text() if current else ""
+        )
 
     def on_play_preview(self):
         pitches = [note["midi"] for note in self.piano_widget.notes]
@@ -571,7 +622,10 @@ class MainWindow(QMainWindow):
 
     def on_show_previous_chord_toggled(self, checked):
         del checked
-        self.on_preview_voicing_changed(self.valid_voicing_combo.currentText())
+        current_item = self.valid_voicing_list.currentItem()
+        self.on_preview_voicing_changed(
+            current_item.text() if current_item else ""
+        )
 
     def on_table_selection_changed(self):
         row = self.table.currentRow()
@@ -602,10 +656,6 @@ class MainWindow(QMainWindow):
         self.chord_input.clear()
         self.request_recompute(select_row=len(self.session.chords) - 1)
 
-    def on_undo(self):
-        self.session.removeLast()
-        self.request_recompute()
-
     def on_delete_selected(self):
         row = self.table.currentRow()
         if row < 0 or row >= len(self.session.chords):
@@ -619,12 +669,13 @@ class MainWindow(QMainWindow):
 
         self.request_recompute()
 
-    def on_pin_selected_from_combo(self):
+    def on_pin_selected_voicing(self):
         row = self.table.currentRow()
         if row < 0:
             return
 
-        label = self.valid_voicing_combo.currentText().strip()
+        current_item = self.valid_voicing_list.currentItem()
+        label = current_item.text().strip() if current_item else ""
         if not label:
             return
 
@@ -659,10 +710,16 @@ class MainWindow(QMainWindow):
         self.request_recompute()
 
     def on_export(self):
+        export_directory = self._export_directory()
+        try:
+            export_directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            QMessageBox.warning(self, "Save chord progression", str(exc))
+            return
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Chord Progression",
-            "chord-progression.json",
+            str(export_directory / "chord-progression.json"),
             "Chord progression (*.json)",
         )
         if not file_path:
@@ -688,17 +745,102 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Save chord progression", str(exc))
             return
 
+        self._refresh_progression_list(select_path=file_path)
         self.status.showMessage(f"Saved chord progression to {file_path}", 5000)
 
-    def on_import(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load Chord Progression",
-            "",
-            "Chord progression (*.json)",
-        )
-        if not file_path:
+    def _export_directory(self):
+        configured_directory = self.settings.value("export/directory", "", type=str)
+        if configured_directory:
+            return Path(configured_directory).expanduser()
+        return Path(__file__).resolve().parent / "ExportedProgressions"
+
+    def on_choose_export_folder(self):
+        current_directory = self._export_directory()
+        try:
+            current_directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            QMessageBox.warning(self, "Choose export folder", str(exc))
             return
+        selected_directory = QFileDialog.getExistingDirectory(
+            self,
+            "Choose Export Folder",
+            str(current_directory),
+        )
+        if not selected_directory:
+            return
+
+        export_directory = Path(selected_directory).expanduser().resolve()
+        self.settings.setValue("export/directory", str(export_directory))
+        self.export_folder_button.setToolTip(
+            f"Chord progressions will save to {export_directory}"
+        )
+        self._refresh_progression_list()
+        self.status.showMessage(
+            f"Export folder set to {export_directory}",
+            5000,
+        )
+
+    def _refresh_progression_list(self, select_path=None):
+        import_directory = self._export_directory()
+        try:
+            import_directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            QMessageBox.warning(self, "Load chord progression", str(exc))
+            return
+
+        progression_paths = sorted(
+            (
+                path
+                for path in import_directory.rglob("*")
+                if path.is_file() and path.suffix.lower() == ".json"
+            ),
+            key=lambda path: str(path).casefold(),
+        )
+
+        previous_block_state = self.progression_combo.blockSignals(True)
+        self.progression_combo.clear()
+        self.progression_combo.addItem("(choose a progression)")
+        for path in progression_paths:
+            try:
+                label = str(path.relative_to(import_directory))
+            except ValueError:
+                label = path.name
+            self.progression_combo.addItem(label, str(path.resolve()))
+
+        selected_index = self.progression_combo.findData(
+            str(Path(select_path).resolve()) if select_path else ""
+        )
+        self.progression_combo.setCurrentIndex(
+            selected_index if selected_index >= 0 else 0
+        )
+        self.progression_combo.blockSignals(previous_block_state)
+
+    def on_progression_changed(self, index):
+        if index < 0:
+            return
+        file_path = self.progression_combo.itemData(index)
+        if file_path:
+            previous_block_state = self.progression_combo.blockSignals(True)
+            self.progression_combo.setCurrentIndex(0)
+            self.progression_combo.blockSignals(previous_block_state)
+            self.on_import(file_path)
+
+    def on_import(self, file_path=None):
+        if file_path is None:
+            import_directory = self._export_directory()
+            try:
+                import_directory.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                QMessageBox.warning(self, "Load chord progression", str(exc))
+                return
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Load Chord Progression",
+                str(import_directory),
+                "Chord progression (*.json)",
+            )
+            if not file_path:
+                return
 
         try:
             with open(file_path, "r", encoding="utf-8") as session_file:
@@ -729,6 +871,13 @@ class MainWindow(QMainWindow):
         self.request_recompute(
             select_row=0 if imported_session.chords else None
         )
+        selected_index = self.progression_combo.findData(
+            str(Path(file_path).resolve())
+        )
+        if selected_index >= 0:
+            previous_block_state = self.progression_combo.blockSignals(True)
+            self.progression_combo.setCurrentIndex(selected_index)
+            self.progression_combo.blockSignals(previous_block_state)
 
     @staticmethod
     def _session_from_data(data):
