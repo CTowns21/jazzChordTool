@@ -5,12 +5,14 @@ Description: Voicing engine for jazzChordTool GUI
 Author: Carson Towns
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from itertools import combinations
 
 from chordParser import (
     DEGREE_ORDER,
+    LETTER_TO_PC,
     VOICING_TEMPLATES,
+    bassName,
     effectiveDegree,
     semitonesFor,
     spellDegree,
@@ -36,6 +38,7 @@ INVERSION_NAMES = [
     "2nd inversion",
     "3rd inversion",
 ]
+SLASH_BASS_LABEL = "slash bass"
 
 
 @dataclass
@@ -139,7 +142,39 @@ def candidateVoicings(chord, style):
     return candidates
 
 
-def pinnedVoicings(chord, label):
+def slashBassVoicings(chord, style):
+    if chord.bassLetter is None:
+        return []
+
+    bass_pc = (
+        LETTER_TO_PC[chord.bassLetter] + chord.bassAccidental
+    ) % 12
+    bass_pitch = style.bottomFloor - 12 + (bass_pc - style.bottomFloor) % 12
+    bass_name = bassName(chord)
+    bass_style = replace(style, bassIsRoot=True)
+    voicings = []
+
+    for upper in candidateVoicings(chord, style):
+        pitch = bass_pitch
+        while pitch >= upper.pitches[0]:
+            pitch -= 12
+
+        voicings.append(
+            Voicing(
+                SLASH_BASS_LABEL,
+                [("bass", bass_name, bass_pc)] + upper.notes,
+                [pitch] + upper.pitches,
+                bass_style,
+            )
+        )
+
+    return voicings
+
+
+def pinnedVoicings(chord, label, style=None):
+    if label == SLASH_BASS_LABEL:
+        return slashBassVoicings(chord, style or STYLES[DEFAULT_STYLE])
+
     if label in VOICING_TEMPLATES:
         degrees = VOICING_TEMPLATES[label]
         if not canSupply(chord, degrees):
@@ -150,14 +185,17 @@ def pinnedVoicings(chord, label):
 
 
 def availableLabels(chord):
-    return [
+    labels = [
         label for label in list(VOICING_TEMPLATES) + INVERSION_NAMES
         if pinnedVoicings(chord, label)
     ]
+    if chord.bassLetter is not None:
+        labels.append(SLASH_BASS_LABEL)
+    return labels
 
 
 def matchLabel(text):
-    labels = list(VOICING_TEMPLATES) + INVERSION_NAMES
+    labels = list(VOICING_TEMPLATES) + INVERSION_NAMES + [SLASH_BASS_LABEL]
     text = text.strip().lower()
 
     exact = [label for label in labels if label.lower() == text]
@@ -219,7 +257,10 @@ def chooseVoicings(chords, pins, style):
         return []
 
     candidateLists = [
-        (pinnedVoicings(chord, pin) if pin else []) or candidateVoicings(chord, style)
+        (
+            pinnedVoicings(chord, pin, style)
+            if pin else []
+        ) or candidateVoicings(chord, style)
         for chord, pin in zip(chords, pins)
     ]
 

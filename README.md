@@ -19,3 +19,7 @@ asks for confirmation when chords are already in the session.
 
 The keyboard view automatically adjusts to center the selected voicing and
 includes every note, even when the voicing falls below the default range.
+
+For slash chords such as `Fadd9/A`, choose **slash bass** in the selected
+chord's voicing list and pin it to put the written bass note below the chord
+tones.

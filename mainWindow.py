@@ -13,7 +13,6 @@ from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
-    QFormLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
@@ -29,10 +28,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from chordParser import parseChordSymbol
 from pianoWidget import PianoWidget
 from sessionModel import Session
-from voicingEngine import STYLES, availableLabels
+from voicingEngine import STYLES
 from workers import RecomputeWorker
 
 
@@ -130,30 +128,12 @@ class MainWindow(QMainWindow):
             }
         """)
         self.table.verticalHeader().setDefaultSectionSize(30)
-        top_row.addWidget(self.table, 1)
+        top_row.addWidget(self.table, 3)
 
-        self.selection_group = QGroupBox("Selected Chord")
+        self.selection_group = QGroupBox("Voicing Controls")
         top_row.addWidget(self.selection_group, 1)
 
-        selection_layout = QHBoxLayout(self.selection_group)
-
-        form = QFormLayout()
-        selection_layout.addLayout(form, 2)
-
-        self.selected_index_label = QLabel("—")
-        self.selected_symbol_label = QLabel("—")
-        self.selected_bass_label = QLabel("—")
-        self.selected_current_voicing_label = QLabel("—")
-        self.selected_pin_status_label = QLabel("—")
-
-        form.addRow("Row:", self.selected_index_label)
-        form.addRow("Chord:", self.selected_symbol_label)
-        form.addRow("Bass:", self.selected_bass_label)
-        form.addRow("Current voicing:", self.selected_current_voicing_label)
-        form.addRow("Pinned:", self.selected_pin_status_label)
-
-        controls_layout = QVBoxLayout()
-        selection_layout.addLayout(controls_layout, 3)
+        controls_layout = QVBoxLayout(self.selection_group)
 
         controls_layout.addWidget(QLabel("Valid voicings for this chord:"))
         self.valid_voicing_combo = QComboBox()
@@ -165,13 +145,6 @@ class MainWindow(QMainWindow):
         self.unpin_selected_button = QPushButton("Unpin")
         controls_layout.addWidget(self.unpin_selected_button)
 
-        controls_layout.addWidget(QLabel("Quick add with optional pin:"))
-        self.quick_pin_combo = QComboBox()
-        self.quick_pin_combo.addItem("(no pin)")
-        controls_layout.addWidget(self.quick_pin_combo)
-
-        self.add_with_pin_button = QPushButton("Add Chord With Selected Pin")
-        controls_layout.addWidget(self.add_with_pin_button)
         controls_layout.addStretch(1)
 
         piano_group = QGroupBox("Voicing on keyboard")
@@ -209,7 +182,6 @@ class MainWindow(QMainWindow):
 
     def _wire_events(self):
         self.add_button.clicked.connect(self.on_add)
-        self.add_with_pin_button.clicked.connect(self.on_add_with_selected_pin)
         self.undo_button.clicked.connect(self.on_undo)
         self.delete_button.clicked.connect(self.on_delete_selected)
         self.import_button.clicked.connect(self.on_import)
@@ -219,18 +191,11 @@ class MainWindow(QMainWindow):
         self.style_combo.currentTextChanged.connect(self.on_style_changed)
 
         self.chord_input.returnPressed.connect(self.on_add)
-        self.chord_input.textChanged.connect(self.on_chord_input_changed)
 
         self.table.itemSelectionChanged.connect(self.on_table_selection_changed)
         self.table.itemDoubleClicked.connect(self.on_table_double_clicked)
 
     def _clear_selection_panel(self):
-        self.selected_index_label.setText("—")
-        self.selected_symbol_label.setText("—")
-        self.selected_bass_label.setText("—")
-        self.selected_current_voicing_label.setText("—")
-        self.selected_pin_status_label.setText("—")
-
         self.valid_voicing_combo.clear()
         self.valid_voicing_combo.addItem("(select a chord row)")
         self.valid_voicing_combo.setEnabled(False)
@@ -245,28 +210,12 @@ class MainWindow(QMainWindow):
             self._clear_selection_panel()
             return
 
-        chord = self.session.chords[row_index]
         pinned = self.session.pins[row_index]
-        row = (
-            self.current_rows[row_index]
-            if row_index < len(self.current_rows)
-            else None
-        )
         voicing = (
             self.current_voicings[row_index]
             if row_index < len(self.current_voicings)
             else None
         )
-
-        self.selected_index_label.setText(
-            str(row["index"]) if row else str(row_index + 1)
-        )
-        self.selected_symbol_label.setText(row["symbol"] if row else chord.symbol)
-        self.selected_bass_label.setText(row["bass"] if row else "—")
-        self.selected_current_voicing_label.setText(
-            row["voicing"] if row else "—"
-        )
-        self.selected_pin_status_label.setText(pinned if pinned else "Automatic")
 
         labels = self.session.availableLabelsFor(row_index)
 
@@ -301,22 +250,6 @@ class MainWindow(QMainWindow):
         self.chord_input.setText(self.session.chords[row].symbol)
         self.chord_input.setFocus()
 
-    def on_chord_input_changed(self):
-        text = self.chord_input.text().strip()
-
-        self.quick_pin_combo.clear()
-        self.quick_pin_combo.addItem("(no pin)")
-
-        if not text:
-            return
-
-        try:
-            chord = parseChordSymbol(text)
-            for label in availableLabels(chord):
-                self.quick_pin_combo.addItem(label)
-        except Exception:
-            pass
-
     def on_add(self):
         symbol = self.chord_input.text().strip()
         if not symbol:
@@ -329,28 +262,6 @@ class MainWindow(QMainWindow):
             return
 
         self.chord_input.clear()
-        self.quick_pin_combo.clear()
-        self.quick_pin_combo.addItem("(no pin)")
-        self.request_recompute(select_row=len(self.session.chords) - 1)
-
-    def on_add_with_selected_pin(self):
-        symbol = self.chord_input.text().strip()
-        if not symbol:
-            return
-
-        pin_text = self.quick_pin_combo.currentText()
-        if pin_text == "(no pin)":
-            pin_text = None
-
-        try:
-            self.session.addChord(symbol, pin_text)
-        except Exception as e:
-            QMessageBox.warning(self, "Add chord", str(e))
-            return
-
-        self.chord_input.clear()
-        self.quick_pin_combo.clear()
-        self.quick_pin_combo.addItem("(no pin)")
         self.request_recompute(select_row=len(self.session.chords) - 1)
 
     def on_undo(self):
