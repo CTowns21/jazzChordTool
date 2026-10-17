@@ -47,10 +47,12 @@ two beats per chord at the chosen tempo. As each chord plays, its row is
 selected and its notes are shown on the keyboard. Use **Stop** to end playback
 early.
 
-Use **Load SoundFont...** to load a piano or other instrument file (`.sf2` or
-`.sf3`), then choose one of its bank 0 presets. Volume and reverb can be
+Place `.sf2` or `.sf3` SoundFont files in the `SoundFonts` folder beside the
+application, then choose one from the SoundFont list. **Refresh** rescans that
+folder, including subfolders; **Browse...** can load a SoundFont from elsewhere.
+Choose one of the loaded file's bank 0 presets. Volume and reverb can be
 adjusted beside the instrument selector. The selected SoundFont, preset,
 volume, and reverb are remembered on this computer. SoundFont files are not
-bundled; use a file whose license permits your intended use. A tested option is
+bundled; use files whose licenses permit your intended use. A tested option is
 the [Upright Piano KW SoundFont](https://github.com/AppCenterCDN-App/modubible-soundfonts/releases/download/v1/piano-upright-kw.sf3),
 which is CC0 1.0.

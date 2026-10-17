@@ -206,10 +206,17 @@ class MainWindow(QMainWindow):
         piano_layout.addLayout(playback_layout)
 
         soundfont_layout = QHBoxLayout()
-        self.load_soundfont_button = QPushButton("Load SoundFont...")
-        self.soundfont_label = QLabel("No SoundFont loaded")
-        self.soundfont_label.setMinimumWidth(130)
-        self.soundfont_label.setToolTip("Selected SoundFont file")
+        soundfont_folder = Path(__file__).resolve().parent / "SoundFonts"
+        self.soundfont_combo = QComboBox()
+        self.soundfont_combo.setMinimumWidth(220)
+        self.soundfont_combo.setToolTip(
+            f"SoundFont files in {soundfont_folder}"
+        )
+        self.refresh_soundfonts_button = QPushButton("Refresh")
+        self.refresh_soundfonts_button.setToolTip(
+            "Rescan the SoundFonts folder for .sf2 and .sf3 files"
+        )
+        self.browse_soundfont_button = QPushButton("Browse...")
         self.preset_combo = QComboBox()
         self.preset_combo.setEnabled(False)
         self.preset_combo.setMinimumWidth(190)
@@ -221,8 +228,10 @@ class MainWindow(QMainWindow):
         self.reverb_slider.setRange(0, 100)
         self.reverb_slider.setValue(35)
         self.reverb_slider.setToolTip("SoundFont reverb level")
-        soundfont_layout.addWidget(self.load_soundfont_button)
-        soundfont_layout.addWidget(self.soundfont_label)
+        soundfont_layout.addWidget(QLabel("SoundFont:"))
+        soundfont_layout.addWidget(self.soundfont_combo, 2)
+        soundfont_layout.addWidget(self.refresh_soundfonts_button)
+        soundfont_layout.addWidget(self.browse_soundfont_button)
         soundfont_layout.addWidget(QLabel("Instrument:"))
         soundfont_layout.addWidget(self.preset_combo, 2)
         soundfont_layout.addWidget(QLabel("Volume:"))
@@ -257,7 +266,15 @@ class MainWindow(QMainWindow):
         self.audio_player.progressionChordChanged.connect(
             self.on_progression_chord_changed
         )
-        self.load_soundfont_button.clicked.connect(self.on_load_soundfont)
+        self.browse_soundfont_button.clicked.connect(self.on_load_soundfont)
+        self.refresh_soundfonts_button.clicked.connect(
+            lambda: self._refresh_soundfont_list(
+                select_path=self.audio_player.soundfont_path
+            )
+        )
+        self.soundfont_combo.currentIndexChanged.connect(
+            self.on_soundfont_changed
+        )
         self.preset_combo.currentIndexChanged.connect(self.on_soundfont_preset_changed)
         self.volume_slider.valueChanged.connect(
             lambda value: self.audio_player.set_volume(value / 100)
@@ -379,9 +396,63 @@ class MainWindow(QMainWindow):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Load SoundFont",
-            "",
+            str(self._soundfont_directory()),
             "SoundFont files (*.sf2 *.sf3);;All files (*)",
         )
+        if file_path:
+            self._load_soundfont_path(file_path)
+
+    @staticmethod
+    def _soundfont_directory():
+        return Path(__file__).resolve().parent / "SoundFonts"
+
+    def _refresh_soundfont_list(self, select_path=None):
+        soundfont_dir = self._soundfont_directory()
+        soundfont_dir.mkdir(parents=True, exist_ok=True)
+        soundfont_paths = sorted(
+            (
+                path
+                for path in soundfont_dir.rglob("*")
+                if path.is_file() and path.suffix.lower() in {".sf2", ".sf3"}
+            ),
+            key=lambda path: str(path).casefold(),
+        )
+
+        if select_path:
+            selected_path = Path(select_path)
+            if selected_path.is_file() and all(
+                path.resolve() != selected_path.resolve()
+                for path in soundfont_paths
+            ):
+                soundfont_paths.append(selected_path)
+
+        previous_block = self.soundfont_combo.blockSignals(True)
+        self.soundfont_combo.clear()
+        self.soundfont_combo.addItem("(choose a SoundFont)")
+        for path in soundfont_paths:
+            try:
+                label = str(path.resolve().relative_to(soundfont_dir.resolve()))
+            except ValueError:
+                label = f"{path.name} (external)"
+            self.soundfont_combo.addItem(label, str(path.resolve()))
+
+        selected_index = self.soundfont_combo.findData(
+            str(Path(select_path).resolve()) if select_path else ""
+        )
+        if selected_index < 0:
+            selected_index = 0
+        self.soundfont_combo.setCurrentIndex(selected_index)
+        self.soundfont_combo.blockSignals(previous_block)
+
+        if not soundfont_paths:
+            self.soundfont_combo.setEnabled(False)
+        else:
+            self.soundfont_combo.setEnabled(True)
+
+    def on_soundfont_changed(self, index):
+        if index < 0:
+            return
+        file_path = self.soundfont_combo.itemData(index)
         if file_path:
             self._load_soundfont_path(file_path)
 
@@ -389,6 +460,9 @@ class MainWindow(QMainWindow):
         try:
             presets = self.audio_player.load_soundfont(file_path)
         except (OSError, RuntimeError, ValueError) as exc:
+            self._refresh_soundfont_list(
+                select_path=self.audio_player.soundfont_path
+            )
             QMessageBox.warning(self, "Load SoundFont", str(exc))
             self.status.showMessage(f"SoundFont error: {exc}", 8000)
             return
@@ -405,8 +479,8 @@ class MainWindow(QMainWindow):
         self._apply_selected_soundfont_preset()
 
         filename = Path(file_path).name
-        self.soundfont_label.setText(filename)
         self.settings.setValue("audio/soundfont", file_path)
+        self._refresh_soundfont_list(select_path=file_path)
         self.status.showMessage(
             f"Loaded SoundFont {filename} ({len(presets)} bank 0 presets)",
             5000,
@@ -436,10 +510,9 @@ class MainWindow(QMainWindow):
             self.settings.value("audio/reverb", 35, type=int)
         )
         soundfont_path = self.settings.value("audio/soundfont", "", type=str)
+        self._refresh_soundfont_list(select_path=soundfont_path or None)
         if soundfont_path and Path(soundfont_path).is_file():
             self._load_soundfont_path(soundfont_path)
-        elif soundfont_path:
-            self.soundfont_label.setText("SoundFont not found")
 
     def on_play_progression(self):
         if not self.current_voicings:
