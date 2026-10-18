@@ -183,6 +183,18 @@ def parseChordSymbol(symbol):
     return simplifyRoot(chord)
 
 
+def parseNoteName(text):
+    note_text = text.strip()
+    if note_text:
+        note_text = note_text[0].upper() + note_text[1:]
+    match = NOTE_RE.fullmatch(note_text)
+    if not match:
+        raise ValueError(f"Invalid note name: '{text}'")
+    letter, accidental = match.groups()
+    pitch_class = (LETTER_TO_PC[letter] + ACC_TO_INT[accidental]) % 12
+    return f"{letter}{accidental}", pitch_class
+
+
 def effectiveDegree(chord, degree):
     if degree == "7" and "7" not in chord.degrees and "6" in chord.degrees:
         return "6"

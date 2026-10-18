@@ -23,9 +23,11 @@ containing `libfluidsynth-3.dll`.
 
 1. Enter a chord symbol in the **Chord** field and press **Add** or Enter.
 2. Repeat for each chord. The chart shows the chord, bass note, selected
-   voicing, notes, and whether that voicing is pinned.
+   voicing, notes, melody-note hint, and whether that voicing is pinned.
 3. Select a chart row to see its voicing choices and preview on the keyboard
-   and grand staff.
+   and grand staff. Enter an optional melody note (such as `Eb`) in **Voicing
+   Controls** and click **Set** to save it for that chord; leave the field blank
+   and click **Set** to clear the hint.
 4. Click the **X** at the end of a row to remove that chord.
 
 Chord symbols use a note name from A through G, optionally followed by `#` or
@@ -59,7 +61,11 @@ changing the progression. Click **Pin** to keep that choice for the selected
 chord. Click **Auto** to let the app choose the best voicing for that chord
 from all styles, taking voice leading through the progression into account.
 Auto clears that chord's pin and re-optimizes unpinned voicings across the
-progression. Automatic choices can use different styles for different chords.
+progression. Melody-note hints are pitch classes without octave information:
+they modestly favor voicings that do not contain the same pitch class, and are
+shown beside each choice as a comparison. Hints influence automatic choices
+but do not prevent you from selecting or pinning a voicing. Automatic choices
+can use different styles for different chords.
 Two-note labels indicate which note is on the bottom.
 
 For slash chords such as `Fadd9/A`, choose **slash bass** from the voicing
@@ -101,8 +107,8 @@ is one tested option and is released under CC0 1.0.
 
 ## Save and load progressions
 
-Click **Save...** to save the current chord symbols and pinned choices as a
-JSON progression file. The default location is the
+Click **Save...** to save the current chord symbols, melody-note hints, and
+pinned choices as a JSON progression file. The default location is the
 Git-ignored `ExportedProgressions` folder beside the app. Use **Choose music
 folder...** to set a different default folder; that preference is remembered
 on this computer.

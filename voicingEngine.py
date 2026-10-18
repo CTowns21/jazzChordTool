@@ -29,6 +29,7 @@ INVERSION_PENALTY = 1.5
 HALF_STEP_RESOLUTION_BONUS = 4.0
 WHOLE_STEP_RESOLUTION_BONUS = 1.5
 COMMON_GUIDE_TONE_BONUS = 2.0
+MELODY_PITCH_CLASS_OVERLAP_PENALTY = 4.0
 
 SEVENTHS = {"7", "6"}
 GUIDE_DEGREES = {"3", "7", "6"}
@@ -464,9 +465,21 @@ def voicingCost(voicing):
     return cost
 
 
-def chooseVoicings(chords, pins, style=None):
+def melodyNoteCost(voicing, melody_pitch_class):
+    if melody_pitch_class is None:
+        return 0.0
+    return MELODY_PITCH_CLASS_OVERLAP_PENALTY * sum(
+        pitch % 12 == melody_pitch_class for pitch in voicing.pitches
+    )
+
+
+def chooseVoicings(chords, pins, style=None, melody_notes=None):
     if not chords:
         return []
+    if melody_notes is None:
+        melody_notes = [None] * len(chords)
+    if len(melody_notes) != len(chords):
+        raise ValueError("Melody notes must match the number of chords.")
 
     candidateLists = []
     for chord, pin in zip(chords, pins):
@@ -478,7 +491,10 @@ def chooseVoicings(chords, pins, style=None):
             candidates = candidateVoicings(chord, style)
         candidateLists.append(candidates)
 
-    best = [[(voicingCost(v), None) for v in candidateLists[0]]]
+    best = [[
+        (voicingCost(v) + melodyNoteCost(v, melody_notes[0]), None)
+        for v in candidateLists[0]
+    ]]
 
     for i in range(1, len(candidateLists)):
         row = []
@@ -487,7 +503,12 @@ def chooseVoicings(chords, pins, style=None):
                 (best[i - 1][k][0] + transitionCost(prev, voicing), k)
                 for k, prev in enumerate(candidateLists[i - 1])
             )
-            row.append((cost + voicingCost(voicing), back))
+            row.append((
+                cost
+                + voicingCost(voicing)
+                + melodyNoteCost(voicing, melody_notes[i]),
+                back,
+            ))
         best.append(row)
 
     j = min(range(len(best[-1])), key=lambda idx: best[-1][idx][0])

@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, QThread, Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -37,15 +37,22 @@ from PySide6.QtWidgets import (
 )
 
 from audioPlayer import TonePlayer
+from chordParser import parseNoteName
 from pianoWidget import PianoWidget
 from sessionModel import Session
 from staffWidget import StaffWidget
-from voicingEngine import STYLES, pinnedVoicings, transitionCost, voicingCost
+from voicingEngine import (
+    STYLES,
+    melodyNoteCost,
+    pinnedVoicings,
+    transitionCost,
+    voicingCost,
+)
 from workers import RecomputeWorker
 
 
 SESSION_FORMAT = "jazz-chord-voicer"
-SESSION_VERSION = 2
+SESSION_VERSION = 3
 
 
 class VoicingListWidget(QListWidget):
@@ -143,9 +150,9 @@ class MainWindow(QMainWindow):
         top_row = QHBoxLayout()
         body.addLayout(top_row, 3)
 
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels(
-            ["#", "Chord", "Bass", "Voicing", "Notes", "Pinned", ""]
+            ["#", "Chord", "Bass", "Voicing", "Notes", "Melody", "Pinned", ""]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setSelectionMode(QTableWidget.SingleSelection)
@@ -155,7 +162,7 @@ class MainWindow(QMainWindow):
         header = self.table.horizontalHeader()
         header.setStretchLastSection(False)
 
-        for column in (0, 1, 2, 3, 5, 6):
+        for column in (0, 1, 2, 3, 5, 6, 7):
             header.setSectionResizeMode(column, QHeaderView.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.Stretch)
 
@@ -176,6 +183,22 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.selection_group, 1)
 
         controls_layout = QVBoxLayout(self.selection_group)
+
+        melody_layout = QHBoxLayout()
+        melody_layout.addWidget(QLabel("Melody note:"))
+        self.melody_note_input = QLineEdit()
+        self.melody_note_input.setPlaceholderText("e.g. Eb")
+        self.melody_note_input.setToolTip(
+            "Optional pitch-class hint (no octave). Auto favors voicings "
+            "that avoid including this pitch class."
+        )
+        melody_layout.addWidget(self.melody_note_input, 1)
+        self.set_melody_note_button = QPushButton("Set")
+        self.set_melody_note_button.setToolTip(
+            "Save this melody note for the selected chord; leave blank to clear it"
+        )
+        melody_layout.addWidget(self.set_melody_note_button)
+        controls_layout.addLayout(melody_layout)
 
         controls_layout.addWidget(
             QLabel("Select a voicing to preview it on the keyboard:")
@@ -309,6 +332,7 @@ class MainWindow(QMainWindow):
         self.export_folder_button.clicked.connect(self.on_choose_export_folder)
         self.pin_selected_button.clicked.connect(self.on_pin_selected_voicing)
         self.auto_selected_button.clicked.connect(self.on_auto_selected_chord)
+        self.set_melody_note_button.clicked.connect(self.on_set_melody_note)
         self.valid_voicing_list.currentItemChanged.connect(
             self.on_voicing_item_changed
         )
@@ -358,6 +382,9 @@ class MainWindow(QMainWindow):
         self.pin_selected_button.setEnabled(False)
         self.auto_selected_button.setEnabled(False)
         self.play_preview_button.setEnabled(False)
+        self.melody_note_input.clear()
+        self.melody_note_input.setEnabled(False)
+        self.set_melody_note_button.setEnabled(False)
 
         self.piano_widget.clear()
         self.staff_widget.clear()
@@ -366,6 +393,11 @@ class MainWindow(QMainWindow):
         if not (0 <= row_index < len(self.session.chords)):
             self._clear_selection_panel()
             return
+
+        melody_note = self.session.melody_notes[row_index]
+        self.melody_note_input.setText(melody_note or "")
+        self.melody_note_input.setEnabled(True)
+        self.set_melody_note_button.setEnabled(True)
 
         pinned = self.session.pins[row_index]
         voicing = (
@@ -379,18 +411,40 @@ class MainWindow(QMainWindow):
         previous_block_state = self.valid_voicing_list.blockSignals(True)
         self.valid_voicing_list.clear()
         current_style = None
+        melody_pitch_class = (
+            parseNoteName(melody_note)[1] if melody_note is not None else None
+        )
         for style_name, candidate in choices:
             if style_name != current_style:
                 heading = QListWidgetItem(style_name)
                 heading.setFlags(Qt.ItemIsEnabled)
                 font = QFont(heading.font())
                 font.setBold(True)
+                font.setPointSize(font.pointSize() + 1)
                 heading.setFont(font)
+                heading.setBackground(QColor("#e8eef5"))
+                heading.setForeground(QColor("#243b53"))
                 self.valid_voicing_list.addItem(heading)
                 current_style = style_name
 
             item = QListWidgetItem(candidate.label)
             item.setData(Qt.UserRole, (style_name, candidate.label))
+            if melody_pitch_class is not None:
+                contains_melody_pitch_class = any(
+                    pitch % 12 == melody_pitch_class
+                    for pitch in candidate.pitches
+                )
+                item.setText(
+                    f"{candidate.label}  · "
+                    f"{'shares' if contains_melody_pitch_class else 'avoids'} "
+                    f"{melody_note}"
+                )
+                item.setToolTip(
+                    f"This voicing "
+                    f"{'contains' if contains_melody_pitch_class else 'does not contain'} "
+                    f"the melody pitch class {melody_note}. Auto gives a modest "
+                    "preference to voicings that avoid it."
+                )
             self.valid_voicing_list.addItem(item)
 
         self.valid_voicing_list.setEnabled(bool(choices))
@@ -452,10 +506,15 @@ class MainWindow(QMainWindow):
             if row_index > 0 and row_index - 1 < len(self.current_voicings)
             else None
         )
+        melody_note = self.session.melody_notes[row_index]
+        melody_pitch_class = (
+            parseNoteName(melody_note)[1] if melody_note is not None else None
+        )
         preview_voicing = min(
             voicings,
             key=lambda candidate: (
                 voicingCost(candidate)
+                + melodyNoteCost(candidate, melody_pitch_class)
                 + (
                     transitionCost(previous_voicing, candidate)
                     if previous_voicing is not None
@@ -693,6 +752,21 @@ class MainWindow(QMainWindow):
         self.chord_input.setText(self.session.chords[row].symbol)
         self.chord_input.setFocus()
 
+    def on_set_melody_note(self):
+        row = self.table.currentRow()
+        if not (0 <= row < len(self.session.chords)):
+            return
+
+        try:
+            self.session.setMelodyNote(row, self.melody_note_input.text())
+        except ValueError as exc:
+            QMessageBox.warning(self, "Melody note", str(exc))
+            self.melody_note_input.setFocus()
+            self.melody_note_input.selectAll()
+            return
+
+        self.request_recompute(select_row=row)
+
     def on_add(self):
         symbol = self.chord_input.text().strip()
         if not symbol:
@@ -782,8 +856,13 @@ class MainWindow(QMainWindow):
                         if pin
                         else None
                     ),
+                    "melody": melody_note,
                 }
-                for chord, pin in zip(self.session.chords, self.session.pins)
+                for chord, pin, melody_note in zip(
+                    self.session.chords,
+                    self.session.pins,
+                    self.session.melody_notes,
+                )
             ],
         }
 
@@ -917,7 +996,7 @@ class MainWindow(QMainWindow):
         if data.get("format") != SESSION_FORMAT:
             raise ValueError("This is not a Jazz Chord Voicer progression file.")
         version = data.get("version")
-        if type(version) is not int or version not in (1, SESSION_VERSION):
+        if type(version) is not int or version not in (1, 2, SESSION_VERSION):
             raise ValueError(
                 f"Unsupported progression file version: {version!r}"
             )
@@ -944,7 +1023,7 @@ class MainWindow(QMainWindow):
                 raise ValueError(
                     f"The pin for chord {index} must be text or null."
                 )
-            if version == SESSION_VERSION and pin is not None:
+            if version >= 2 and pin is not None:
                 if (
                     not isinstance(pin, dict)
                     or not isinstance(pin.get("style"), str)
@@ -955,8 +1034,23 @@ class MainWindow(QMainWindow):
                         f"The pin for chord {index} must include a valid "
                         "style and label."
                     )
+            melody_note = (
+                chord_data.get("melody")
+                if version == SESSION_VERSION
+                else None
+            )
+            if version == SESSION_VERSION and melody_note is not None:
+                if not isinstance(melody_note, str):
+                    raise ValueError(
+                        f"The melody note for chord {index} must be text or null."
+                    )
             try:
                 imported_session.addChord(symbol)
+                if melody_note is not None:
+                    imported_session.setMelodyNote(
+                        len(imported_session.chords) - 1,
+                        melody_note,
+                    )
                 if pin is not None:
                     chord_index = len(imported_session.chords) - 1
                     if version == 1:
@@ -1075,6 +1169,7 @@ class MainWindow(QMainWindow):
                 row["bass"],
                 row["voicing"],
                 row["notes"],
+                row["melody"],
                 "Yes" if row["pinned"] else "",
             ]
 
@@ -1082,6 +1177,11 @@ class MainWindow(QMainWindow):
                 item = QTableWidgetItem(value)
                 if column == 0:
                     item.setTextAlignment(Qt.AlignCenter)
+                if column == 5 and value:
+                    item.setToolTip(
+                        "Melody pitch-class hint; Auto favors voicings that "
+                        "avoid including this pitch class."
+                    )
                 self.table.setItem(row_index, column, item)
 
             remove_button = QPushButton("X")
@@ -1093,7 +1193,7 @@ class MainWindow(QMainWindow):
                     checked,
                 )
             )
-            self.table.setCellWidget(row_index, 6, remove_button)
+            self.table.setCellWidget(row_index, 7, remove_button)
 
     def closeEvent(self, event):
         self.audio_player.close()
