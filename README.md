@@ -40,7 +40,7 @@ them.
 
 ## Explore voicings
 
-The **Style** menu controls the automatic voicing approach:
+The voicing choices are grouped by style in **Voicing Controls**:
 
 - **rootless**: four-note jazz voicings that omit the root when appropriate.
 - **shell**: compact voicings that include the root and core chord tones.
@@ -53,11 +53,14 @@ The **Style** menu controls the automatic voicing approach:
 - **left/right hand**: a lower accompaniment shape paired with upper chord
   tones in a separate register.
 
-The chart displays the voicing selected for each chord, taking voice leading
-through the progression into account. In **Voicing Controls**, select any
-listed option to preview it without changing the progression. Click **Pin**
-to keep that choice for the selected chord; **Unpin** returns it to automatic
-selection. Two-note labels indicate which note is on the bottom.
+Style headings are informational and are skipped when moving through the
+choices with the keyboard. Select any listed voicing to preview it without
+changing the progression. Click **Pin** to keep that choice for the selected
+chord. Click **Auto** to let the app choose the best voicing for that chord
+from all styles, taking voice leading through the progression into account.
+Auto clears that chord's pin and re-optimizes unpinned voicings across the
+progression. Automatic choices can use different styles for different chords.
+Two-note labels indicate which note is on the bottom.
 
 For slash chords such as `Fadd9/A`, choose **slash bass** from the voicing
 choices and pin it to place the written bass note below the chord voicing.
@@ -98,8 +101,8 @@ is one tested option and is released under CC0 1.0.
 
 ## Save and load progressions
 
-Click **Save...** to save the current chord symbols, voicing style, and pinned
-choices as a JSON progression file. The default location is the
+Click **Save...** to save the current chord symbols and pinned choices as a
+JSON progression file. The default location is the
 Git-ignored `ExportedProgressions` folder beside the app. Use **Choose music
 folder...** to set a different default folder; that preference is remembered
 on this computer.

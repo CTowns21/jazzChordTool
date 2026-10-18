@@ -363,30 +363,46 @@ def slashBassVoicings(chord, style):
 
 
 def pinnedVoicings(chord, label, style=None):
-    if label == SLASH_BASS_LABEL:
-        return slashBassVoicings(chord, style or STYLES[DEFAULT_STYLE])
+    styles = [style] if style is not None else STYLES.values()
+    matches = []
+    for candidate_style in styles:
+        candidates = (
+            slashBassVoicings(chord, candidate_style)
+            if label == SLASH_BASS_LABEL
+            else candidateVoicings(chord, candidate_style)
+        )
+        matches.extend(
+            voicing for voicing in candidates if voicing.label == label
+        )
+    return matches
 
-    for candidate_style in STYLES.values():
-        matching_voicings = [
-            voicing
-            for voicing in candidateVoicings(chord, candidate_style)
-            if voicing.label == label
-        ]
-        if matching_voicings:
-            return matching_voicings
-    return []
+
+def allVoicings(chord):
+    voicings = []
+    for style in STYLES.values():
+        candidates = candidateVoicings(chord, style)
+        if chord.bassLetter is not None:
+            candidates += slashBassVoicings(chord, style)
+        voicings.extend((style.name, voicing) for voicing in candidates)
+    return voicings
+
+
+def availableVoicings(chord):
+    voicings = []
+    seen = set()
+    for style_name, candidate in allVoicings(chord):
+        key = (style_name, candidate.label)
+        if key in seen:
+            continue
+        seen.add(key)
+        voicings.append((style_name, candidate))
+    return voicings
 
 
 def availableLabels(chord):
-    labels = []
-    for style_name in STYLES:
-        labels.extend(
-            voicing.label
-            for voicing in candidateVoicings(chord, STYLES[style_name])
-        )
-    if chord.bassLetter is not None:
-        labels.append(SLASH_BASS_LABEL)
-    return list(dict.fromkeys(labels))
+    return list(dict.fromkeys(
+        voicing.label for _, voicing in availableVoicings(chord)
+    ))
 
 
 def matchLabel(text, labels=None):
@@ -448,17 +464,19 @@ def voicingCost(voicing):
     return cost
 
 
-def chooseVoicings(chords, pins, style):
+def chooseVoicings(chords, pins, style=None):
     if not chords:
         return []
 
-    candidateLists = [
-        (
-            pinnedVoicings(chord, pin, style)
-            if pin else []
-        ) or candidateVoicings(chord, style)
-        for chord, pin in zip(chords, pins)
-    ]
+    candidateLists = []
+    for chord, pin in zip(chords, pins):
+        if pin:
+            candidates = pinnedVoicings(chord, pin[1], STYLES[pin[0]])
+        elif style is None:
+            candidates = [voicing for _, voicing in allVoicings(chord)]
+        else:
+            candidates = candidateVoicings(chord, style)
+        candidateLists.append(candidates)
 
     best = [[(voicingCost(v), None) for v in candidateLists[0]]]
 

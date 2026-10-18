@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import QSettings, QThread, Qt
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QMainWindow,
     QMessageBox,
     QPushButton,
@@ -43,7 +45,29 @@ from workers import RecomputeWorker
 
 
 SESSION_FORMAT = "jazz-chord-voicer"
-SESSION_VERSION = 1
+SESSION_VERSION = 2
+
+
+class VoicingListWidget(QListWidget):
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key_Up, Qt.Key_Down):
+            step = -1 if event.key() == Qt.Key_Up else 1
+            row = self.currentRow()
+            if row < 0:
+                row = -1 if step > 0 else self.count()
+
+            while 0 <= row + step < self.count():
+                row += step
+                item = self.item(row)
+                if item.flags() & Qt.ItemIsSelectable:
+                    self.setCurrentRow(row)
+                    event.accept()
+                    return
+
+            event.accept()
+            return
+
+        super().keyPressEvent(event)
 
 
 class MainWindow(QMainWindow):
@@ -88,12 +112,6 @@ class MainWindow(QMainWindow):
 
         self.add_button = QPushButton("Add")
         top.addWidget(self.add_button)
-
-        top.addWidget(QLabel("Style:"))
-
-        self.style_combo = QComboBox()
-        self.style_combo.addItems(STYLES.keys())
-        top.addWidget(self.style_combo)
 
         top.addWidget(QLabel("Load:"))
         self.progression_combo = QComboBox()
@@ -162,14 +180,17 @@ class MainWindow(QMainWindow):
         controls_layout.addWidget(
             QLabel("Select a voicing to preview it on the keyboard:")
         )
-        self.valid_voicing_list = QListWidget()
+        self.valid_voicing_list = VoicingListWidget()
         controls_layout.addWidget(self.valid_voicing_list, 1)
 
         voicing_actions = QHBoxLayout()
         self.pin_selected_button = QPushButton("Pin")
-        self.unpin_selected_button = QPushButton("Unpin")
+        self.auto_selected_button = QPushButton("Auto")
+        self.auto_selected_button.setToolTip(
+            "Automatically choose the best voicing for this chord"
+        )
         voicing_actions.addWidget(self.pin_selected_button)
-        voicing_actions.addWidget(self.unpin_selected_button)
+        voicing_actions.addWidget(self.auto_selected_button)
         controls_layout.addLayout(voicing_actions)
 
         piano_group = QGroupBox("Voicing: Keyboard and Staff")
@@ -287,7 +308,7 @@ class MainWindow(QMainWindow):
         self.export_button.clicked.connect(self.on_export)
         self.export_folder_button.clicked.connect(self.on_choose_export_folder)
         self.pin_selected_button.clicked.connect(self.on_pin_selected_voicing)
-        self.unpin_selected_button.clicked.connect(self.on_unpin_selected)
+        self.auto_selected_button.clicked.connect(self.on_auto_selected_chord)
         self.valid_voicing_list.currentItemChanged.connect(
             self.on_voicing_item_changed
         )
@@ -324,8 +345,6 @@ class MainWindow(QMainWindow):
         self.show_previous_chord_checkbox.toggled.connect(
             self.on_show_previous_chord_toggled
         )
-        self.style_combo.currentTextChanged.connect(self.on_style_changed)
-
         self.chord_input.returnPressed.connect(self.on_add)
 
         self.table.itemSelectionChanged.connect(self.on_table_selection_changed)
@@ -337,7 +356,7 @@ class MainWindow(QMainWindow):
         self.valid_voicing_list.setEnabled(False)
 
         self.pin_selected_button.setEnabled(False)
-        self.unpin_selected_button.setEnabled(False)
+        self.auto_selected_button.setEnabled(False)
         self.play_preview_button.setEnabled(False)
 
         self.piano_widget.clear()
@@ -355,53 +374,76 @@ class MainWindow(QMainWindow):
             else None
         )
 
-        labels = self.session.availableLabelsFor(row_index)
+        choices = self.session.availableVoicingsFor(row_index)
 
         previous_block_state = self.valid_voicing_list.blockSignals(True)
         self.valid_voicing_list.clear()
-        for label in labels:
-            self.valid_voicing_list.addItem(label)
+        current_style = None
+        for style_name, candidate in choices:
+            if style_name != current_style:
+                heading = QListWidgetItem(style_name)
+                heading.setFlags(Qt.ItemIsEnabled)
+                font = QFont(heading.font())
+                font.setBold(True)
+                heading.setFont(font)
+                self.valid_voicing_list.addItem(heading)
+                current_style = style_name
 
-        self.valid_voicing_list.setEnabled(bool(labels))
-        self.pin_selected_button.setEnabled(bool(labels))
-        self.unpin_selected_button.setEnabled(True)
-        self.play_preview_button.setEnabled(bool(labels))
-        if labels:
-            self.valid_voicing_list.setCurrentRow(0)
+            item = QListWidgetItem(candidate.label)
+            item.setData(Qt.UserRole, (style_name, candidate.label))
+            self.valid_voicing_list.addItem(item)
 
-        selected_label = pinned
-        if voicing is not None and voicing.label in labels:
-            selected_label = voicing.label
-        if selected_label in labels:
-            matching_items = self.valid_voicing_list.findItems(
-                selected_label, Qt.MatchExactly
-            )
-            if matching_items:
-                self.valid_voicing_list.setCurrentItem(matching_items[0])
+        self.valid_voicing_list.setEnabled(bool(choices))
+        self.pin_selected_button.setEnabled(bool(choices))
+        self.auto_selected_button.setEnabled(bool(choices))
+        self.play_preview_button.setEnabled(bool(choices))
+
+        selected_choice = pinned
+        if voicing is not None:
+            selected_choice = (voicing.style.name, voicing.label)
+        if selected_choice is not None:
+            for index in range(self.valid_voicing_list.count()):
+                item = self.valid_voicing_list.item(index)
+                if item.data(Qt.UserRole) == selected_choice:
+                    self.valid_voicing_list.setCurrentItem(item)
+                    break
+        if self.valid_voicing_list.currentItem() is None:
+            self._select_first_voicing_choice()
         self.valid_voicing_list.blockSignals(previous_block_state)
 
         current_item = self.valid_voicing_list.currentItem()
         self.on_preview_voicing_changed(
-            current_item.text() if current_item else ""
+            current_item.data(Qt.UserRole) if current_item else None
         )
 
-    def on_preview_voicing_changed(self, label):
+    def _select_first_voicing_choice(self):
+        for index in range(self.valid_voicing_list.count()):
+            item = self.valid_voicing_list.item(index)
+            if item.data(Qt.UserRole) is not None:
+                self.valid_voicing_list.setCurrentItem(item)
+                return
+
+    def on_preview_voicing_changed(self, choice):
         row_index = self.table.currentRow()
         if not (0 <= row_index < len(self.session.chords)):
             self.piano_widget.clear()
             self.staff_widget.clear()
             return
+        if choice is None:
+            return
+
+        style_name, label = choice
 
         voicings = pinnedVoicings(
             self.session.chords[row_index],
             label,
-            STYLES[self.session.styleName],
+            STYLES[style_name],
         )
         if not voicings:
             self.piano_widget.clear()
             self.staff_widget.clear()
             self.status.showMessage(
-                f"Can't preview voicing: {label}", 5000
+                f"Can't preview voicing: {style_name} / {label}", 5000
             )
             return
 
@@ -439,7 +481,7 @@ class MainWindow(QMainWindow):
     def on_voicing_item_changed(self, current, previous):
         del previous
         self.on_preview_voicing_changed(
-            current.text() if current else ""
+            current.data(Qt.UserRole) if current else None
         )
 
     def on_play_preview(self):
@@ -633,7 +675,7 @@ class MainWindow(QMainWindow):
         del checked
         current_item = self.valid_voicing_list.currentItem()
         self.on_preview_voicing_changed(
-            current_item.text() if current_item else ""
+            current_item.data(Qt.UserRole) if current_item else None
         )
 
     def on_table_selection_changed(self):
@@ -685,19 +727,20 @@ class MainWindow(QMainWindow):
             return
 
         current_item = self.valid_voicing_list.currentItem()
-        label = current_item.text().strip() if current_item else ""
-        if not label:
+        choice = current_item.data(Qt.UserRole) if current_item else None
+        if choice is None:
             return
 
         try:
-            self.session.pinChord(row, label)
+            style_name, label = choice
+            self.session.pinChord(row, label, style_name)
         except Exception as e:
             QMessageBox.warning(self, "Pin chord", str(e))
             return
 
         self.request_recompute(select_row=row)
 
-    def on_unpin_selected(self):
+    def on_auto_selected_chord(self):
         row = self.table.currentRow()
         if row < 0:
             return
@@ -705,19 +748,10 @@ class MainWindow(QMainWindow):
         try:
             self.session.unpinChord(row)
         except Exception as e:
-            QMessageBox.warning(self, "Unpin chord", str(e))
+            QMessageBox.warning(self, "Auto voicing", str(e))
             return
 
         self.request_recompute(select_row=row)
-
-    def on_style_changed(self, style_name):
-        try:
-            self.session.setStyle(style_name)
-        except Exception as e:
-            QMessageBox.warning(self, "Style", str(e))
-            return
-
-        self.request_recompute()
 
     def on_export(self):
         export_directory = self._export_directory()
@@ -740,9 +774,15 @@ class MainWindow(QMainWindow):
         data = {
             "format": SESSION_FORMAT,
             "version": SESSION_VERSION,
-            "style": self.session.styleName,
             "chords": [
-                {"symbol": chord.symbol, "pin": pin}
+                {
+                    "symbol": chord.symbol,
+                    "pin": (
+                        {"style": pin[0], "label": pin[1]}
+                        if pin
+                        else None
+                    ),
+                }
                 for chord, pin in zip(self.session.chords, self.session.pins)
             ],
         }
@@ -859,9 +899,6 @@ class MainWindow(QMainWindow):
                 return
 
         self.session = imported_session
-        previous_block_state = self.style_combo.blockSignals(True)
-        self.style_combo.setCurrentText(imported_session.styleName)
-        self.style_combo.blockSignals(previous_block_state)
         self.request_recompute(
             select_row=0 if imported_session.chords else None
         )
@@ -879,20 +916,22 @@ class MainWindow(QMainWindow):
             raise ValueError("The file must contain a JSON object.")
         if data.get("format") != SESSION_FORMAT:
             raise ValueError("This is not a Jazz Chord Voicer progression file.")
-        if (
-            type(data.get("version")) is not int
-            or data["version"] != SESSION_VERSION
+        version = data.get("version")
+        if type(version) is not int or version not in (1, SESSION_VERSION):
+            raise ValueError(
+                f"Unsupported progression file version: {version!r}"
+            )
+        legacy_style = data.get("style")
+        if version == 1 and (
+            not isinstance(legacy_style, str) or legacy_style not in STYLES
         ):
             raise ValueError(
-                f"Unsupported progression file version: {data.get('version')!r}"
+                "Version 1 progression files must include a valid style."
             )
-        if not isinstance(data.get("style"), str):
-            raise ValueError("The progression file must include a style.")
         if not isinstance(data.get("chords"), list):
             raise ValueError("The progression file must include a chords list.")
 
         imported_session = Session()
-        imported_session.setStyle(data["style"])
 
         for index, chord_data in enumerate(data["chords"], start=1):
             if not isinstance(chord_data, dict):
@@ -901,10 +940,51 @@ class MainWindow(QMainWindow):
             pin = chord_data.get("pin")
             if not isinstance(symbol, str):
                 raise ValueError(f"Chord {index} must include a symbol.")
-            if pin is not None and not isinstance(pin, str):
-                raise ValueError(f"The pin for chord {index} must be text or null.")
+            if version == 1 and pin is not None and not isinstance(pin, str):
+                raise ValueError(
+                    f"The pin for chord {index} must be text or null."
+                )
+            if version == SESSION_VERSION and pin is not None:
+                if (
+                    not isinstance(pin, dict)
+                    or not isinstance(pin.get("style"), str)
+                    or pin["style"] not in STYLES
+                    or not isinstance(pin.get("label"), str)
+                ):
+                    raise ValueError(
+                        f"The pin for chord {index} must include a valid "
+                        "style and label."
+                    )
             try:
-                imported_session.addChord(symbol, pin)
+                imported_session.addChord(symbol)
+                if pin is not None:
+                    chord_index = len(imported_session.chords) - 1
+                    if version == 1:
+                        style_order = [legacy_style] + [
+                            name for name in STYLES if name != legacy_style
+                        ]
+                        pin_style = None
+                        for style_name in style_order:
+                            try:
+                                imported_session.pinChord(
+                                    chord_index,
+                                    pin,
+                                    style_name,
+                                )
+                                pin_style = style_name
+                                break
+                            except ValueError:
+                                continue
+                        if pin_style is None:
+                            raise ValueError(
+                                f"Can't find a voicing for pin {pin!r}."
+                            )
+                    else:
+                        imported_session.pinChord(
+                            chord_index,
+                            pin["label"],
+                            pin["style"],
+                        )
             except ValueError as exc:
                 raise ValueError(f"Invalid chord {index}: {exc}") from exc
 
