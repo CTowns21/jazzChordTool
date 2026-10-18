@@ -10,8 +10,8 @@ import json
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QSettings, QThread, Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import QSettings, QThread, Qt, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from audioPlayer import TonePlayer
+from audioPlayer import FluidSynthUnavailableError, TonePlayer
 from chordParser import parseNoteName
 from pianoWidget import PianoWidget
 from sessionModel import Session
@@ -53,6 +53,7 @@ from workers import RecomputeWorker
 
 SESSION_FORMAT = "jazz-chord-voicer"
 SESSION_VERSION = 3
+FLUIDSYNTH_DOWNLOAD_URL = "https://github.com/FluidSynth/fluidsynth/releases/latest"
 
 
 class VoicingListWidget(QListWidget):
@@ -547,6 +548,9 @@ class MainWindow(QMainWindow):
         pitches = [note["midi"] for note in self.piano_widget.notes]
         try:
             self.audio_player.play_preview(pitches)
+        except FluidSynthUnavailableError as exc:
+            self._show_fluidsynth_setup(str(exc))
+            return
         except (RuntimeError, ValueError) as exc:
             self.on_playback_error(str(exc))
             return
@@ -619,6 +623,12 @@ class MainWindow(QMainWindow):
     def _load_soundfont_path(self, file_path):
         try:
             presets = self.audio_player.load_soundfont(file_path)
+        except FluidSynthUnavailableError as exc:
+            self._refresh_soundfont_list(
+                select_path=self.audio_player.soundfont_path
+            )
+            self._show_fluidsynth_setup(str(exc), soundfont_path=file_path)
+            return
         except (OSError, RuntimeError, ValueError) as exc:
             self._refresh_soundfont_list(
                 select_path=self.audio_player.soundfont_path
@@ -687,8 +697,67 @@ class MainWindow(QMainWindow):
                 [voicing.pitches for voicing in self.current_voicings],
                 self.tempo_spin.value(),
             )
+        except FluidSynthUnavailableError as exc:
+            self._show_fluidsynth_setup(str(exc))
         except (RuntimeError, ValueError) as exc:
             self.on_playback_error(str(exc))
+
+    def _show_fluidsynth_setup(self, error_message, soundfont_path=None):
+        message = QMessageBox(self)
+        message.setIcon(QMessageBox.Warning)
+        message.setWindowTitle("Set up audio playback")
+        message.setText("FluidSynth is needed to play audio.")
+        message.setInformativeText(
+            f"{error_message}\n\n"
+            "Download the latest Windows x64 package from the official "
+            "FluidSynth releases page, extract it, then choose the folder "
+            "containing libfluidsynth-3.dll. After that, load a SoundFont "
+            "(.sf2 or .sf3) if you have not already."
+        )
+        download_button = message.addButton(
+            "Open FluidSynth downloads",
+            QMessageBox.ActionRole,
+        )
+        folder_button = message.addButton(
+            "Choose DLL folder...",
+            QMessageBox.ActionRole,
+        )
+        message.addButton(QMessageBox.Close)
+        message.exec()
+
+        clicked_button = message.clickedButton()
+        if clicked_button is download_button:
+            if not QDesktopServices.openUrl(QUrl(FLUIDSYNTH_DOWNLOAD_URL)):
+                QMessageBox.warning(
+                    self,
+                    "Open FluidSynth downloads",
+                    "Could not open the FluidSynth releases page in a browser.",
+                )
+            return
+        if clicked_button is not folder_button:
+            return
+
+        dll_directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select the folder containing libfluidsynth-3.dll",
+            str(Path.home()),
+        )
+        if not dll_directory:
+            return
+
+        try:
+            self.audio_player.add_dll_directory(dll_directory)
+        except (OSError, RuntimeError, ValueError) as exc:
+            QMessageBox.warning(self, "FluidSynth setup", str(exc))
+            return
+
+        if soundfont_path:
+            self._load_soundfont_path(soundfont_path)
+        else:
+            self.status.showMessage(
+                "FluidSynth found. Load a SoundFont to enable audio playback.",
+                8000,
+            )
 
     def on_stop_playback(self):
         self.audio_player.stop()

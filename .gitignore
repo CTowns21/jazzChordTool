@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+/.venv-build/
+/build/
+/dist/
 /SoundFonts/*
 !/SoundFonts/.gitkeep
 /ExportedProgressions/*

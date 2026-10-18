@@ -9,6 +9,10 @@ from PySide6.QtCore import QBuffer, QByteArray, QObject, QTimer, Signal
 from PySide6.QtMultimedia import QAudio, QAudioFormat, QAudioSink, QMediaDevices
 
 
+class FluidSynthUnavailableError(RuntimeError):
+    """Raised when pyFluidSynth or its native library cannot be loaded."""
+
+
 class TonePlayer(QObject):
     playingChanged = Signal(bool)
     playbackError = Signal(str)
@@ -39,6 +43,7 @@ class TonePlayer(QObject):
         self._progression_chord_count = 0
         self._progression_chord_index = 0
         self._dll_directory_handles = []
+        self._dll_directory_paths = set()
 
     @property
     def soundfont_path(self):
@@ -169,6 +174,23 @@ class TonePlayer(QObject):
         self._soundfont_path = None
         self._close_dll_directory_handles()
 
+    def add_dll_directory(self, directory):
+        if os.name != "nt":
+            raise RuntimeError("Selecting a FluidSynth DLL folder is Windows-only.")
+
+        dll_directory = Path(directory).expanduser().resolve()
+        if not dll_directory.is_dir():
+            raise ValueError(f"FluidSynth folder does not exist: {dll_directory}")
+
+        if not any(dll_directory.glob("libfluidsynth*.dll")):
+            raise ValueError(
+                f"No libfluidsynth DLL was found in {dll_directory}. "
+                "Choose the folder containing the FluidSynth DLL."
+            )
+
+        self._register_dll_directory(dll_directory)
+        self._load_fluidsynth()
+
     def _load_fluidsynth(self):
         if self._fluidsynth_module is not None:
             return self._fluidsynth_module
@@ -185,30 +207,40 @@ class TonePlayer(QObject):
             ]
             for directory in candidate_dirs:
                 if directory is not None and directory.is_dir():
-                    self._dll_directory_handles.append(
-                        os.add_dll_directory(str(directory))
-                    )
-                    os.environ["PATH"] = (
-                        str(directory) + os.pathsep + os.environ.get("PATH", "")
-                    )
+                    self._register_dll_directory(directory)
 
         try:
             self._fluidsynth_module = importlib.import_module("fluidsynth")
             return self._fluidsynth_module
-        except ImportError as exc:
-            raise RuntimeError(
+        except (ImportError, OSError) as exc:
+            raise FluidSynthUnavailableError(
                 "Could not load pyFluidSynth or the FluidSynth native library. "
-                "Install the project requirements and FluidSynth, then set "
-                "FLUIDSYNTH_DLL_DIR to the folder containing its DLL."
+                "Install FluidSynth and select the folder containing its DLL."
             ) from exc
+
+    def _register_dll_directory(self, directory):
+        directory = Path(directory).resolve()
+        directory_key = str(directory).casefold()
+        if directory_key in self._dll_directory_paths:
+            return
+
+        self._dll_directory_handles.append(
+            os.add_dll_directory(str(directory))
+        )
+        self._dll_directory_paths.add(directory_key)
+        os.environ["PATH"] = (
+            str(directory) + os.pathsep + os.environ.get("PATH", "")
+        )
 
     def _close_dll_directory_handles(self):
         for handle in self._dll_directory_handles:
             handle.close()
         self._dll_directory_handles.clear()
+        self._dll_directory_paths.clear()
 
     def _require_synth(self):
         if self._synth is None:
+            self._load_fluidsynth()
             raise RuntimeError(
                 "Load a SoundFont first. Use a compatible .sf2 or .sf3 file."
             )

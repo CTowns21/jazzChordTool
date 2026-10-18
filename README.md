@@ -17,7 +17,33 @@ python guiApp.py
 Sound playback uses FluidSynth and also requires its native library. Install
 FluidSynth 2 or newer for your operating system. If the app cannot find the
 FluidSynth library on Windows, set `FLUIDSYNTH_DLL_DIR` to the directory
-containing `libfluidsynth-3.dll`.
+containing `libfluidsynth-3.dll`. When audio setup fails, the app offers to
+open the official FluidSynth releases page or select the folder containing
+the DLL after extracting the Windows x64 package.
+
+## Build a Windows executable
+
+Double-click `build.bat` to create the portable app and a shareable ZIP. The
+first run creates an isolated build environment and installs the build
+requirements; later runs reuse it. You can also run `build.bat --no-pause` from
+a terminal.
+
+The script uses PyInstaller to build the portable app. To run the steps
+manually instead:
+
+```cmd
+python -m venv .venv-build
+.venv-build\Scripts\activate
+python -m pip install -r build-requirements.txt
+python -m PyInstaller --noconfirm --clean jazzChordVoicer.spec
+```
+
+Run `dist\JazzChordVoicer\JazzChordVoicer.exe` or share
+`dist\JazzChordVoicer-windows.zip`. Keep the `_internal` folder beside the
+executable. Recipients do not need Python installed. SoundFonts are not
+included, and audio playback requires the native FluidSynth DLL; recipients
+must install FluidSynth 2 or newer and configure `FLUIDSYNTH_DLL_DIR` if the
+DLL is not in a standard location.
 
 ## Build a progression
 
